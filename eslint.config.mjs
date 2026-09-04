@@ -11,6 +11,7 @@ export default defineConfig([
     "**/.wrangler/**",
     "**/node_modules/**",
     "**/public/**",
+    "**/site/**",
     "next-env.d.ts",
   ]),
 ]);

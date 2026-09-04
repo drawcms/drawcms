@@ -1,0 +1,8 @@
+---
+import DefaultHeader from "@astrojs/starlight/components/Header.astro";
+import BlogHeader from "./BlogHeader.astro";
+
+const isBlogRoute = Astro.url.pathname === "/blog" || Astro.url.pathname.startsWith("/blog/");
+---
+
+{isBlogRoute ? <BlogHeader /> : <DefaultHeader />}

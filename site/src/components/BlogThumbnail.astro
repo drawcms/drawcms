@@ -1,0 +1,132 @@
+---
+import { Image } from "astro:assets";
+import type { CollectionEntry } from "astro:content";
+
+type Cover = CollectionEntry<"docs">["data"]["cover"];
+
+interface Props {
+  cover: Cover;
+  eager?: boolean;
+  variant?: "card" | "featured";
+}
+
+const { cover, eager = false, variant = "card" } = Astro.props;
+const darkImage = cover && "dark" in cover ? cover.dark : cover?.image;
+const lightImage = cover && "light" in cover ? cover.light : undefined;
+const loading = eager ? "eager" : "lazy";
+---
+
+<figure class:list={["dm-blog-thumbnail", `dm-blog-thumbnail--${variant}`]}>
+  {
+    darkImage ? (
+      typeof darkImage === "string" ? (
+        <img
+          class:list={["dm-blog-thumbnail-image", { "light:sl-hidden": Boolean(lightImage) }]}
+          src={darkImage}
+          alt={cover?.alt ?? ""}
+          loading={loading}
+          decoding="async"
+        />
+      ) : (
+        <Image
+          class:list={["dm-blog-thumbnail-image", { "light:sl-hidden": Boolean(lightImage) }]}
+          src={darkImage}
+          alt={cover?.alt ?? ""}
+          loading={loading}
+          decoding="async"
+        />
+      )
+    ) : (
+      <div class="dm-blog-thumbnail-fallback" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="presentation">
+          <path d="M5 3h5.5a9 9 0 0 1 0 18H5V3Z" opacity="0.28"></path>
+          <path d="M5 3h3a9 9 0 0 1 0 18H5V3Z"></path>
+        </svg>
+        <span>DrawCMS journal</span>
+      </div>
+    )
+  }
+  {
+    lightImage &&
+      (typeof lightImage === "string" ? (
+        <img
+          class="dm-blog-thumbnail-image dark:sl-hidden"
+          src={lightImage}
+          alt={cover?.alt ?? ""}
+          loading={loading}
+          decoding="async"
+        />
+      ) : (
+        <Image
+          class="dm-blog-thumbnail-image dark:sl-hidden"
+          src={lightImage}
+          alt={cover?.alt ?? ""}
+          loading={loading}
+          decoding="async"
+        />
+      ))
+  }
+</figure>
+
+<style>
+  .dm-blog-thumbnail {
+    aspect-ratio: 16 / 10;
+    background: var(--sl-color-bg-nav);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.5rem;
+    height: 100%;
+    margin: 0;
+    min-height: 13rem;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .dm-blog-thumbnail--featured {
+    border-inline-start: 0;
+    border-radius: 0 0.5rem 0.5rem 0;
+    min-height: clamp(18rem, 34vw, 27rem);
+  }
+
+  .dm-blog-thumbnail-image {
+    height: 100%;
+    inset: 0;
+    object-fit: cover;
+    position: absolute;
+    width: 100%;
+  }
+
+  .dm-blog-thumbnail-fallback {
+    align-items: center;
+    background-image: radial-gradient(var(--sl-color-hairline-light) 1px, transparent 1px);
+    background-size: 1rem 1rem;
+    color: var(--sl-color-text-accent);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    height: 100%;
+    justify-content: center;
+  }
+
+  .dm-blog-thumbnail-fallback svg {
+    fill: currentColor;
+    height: 4rem;
+    width: 4rem;
+  }
+
+  .dm-blog-thumbnail-fallback span {
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 49.99rem) {
+    .dm-blog-thumbnail--featured {
+      border-inline-start: 1px solid var(--sl-color-hairline-light);
+      border-radius: 0 0 0.5rem 0.5rem;
+      border-top: 0;
+      min-height: auto;
+    }
+  }
+</style>

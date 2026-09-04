@@ -123,11 +123,12 @@ Guides and release notes live on the docs site:
 concepts, self-hosting, plugin & host API, WebMCP agent authoring, document
 format, and browser support.
 
-The docs and blog source of truth is this repository: the Markdown in `docs/`
-and `blog/`. The docs site renders it from a pinned content tag. To publish
-updates: edit the Markdown, push, tag the release
-(`git tag content/v2 && git push --tags`), then bump the tag pinned in the
-site's `content.config.json`.
+The docs site and its content are part of this repository — GitHub is the
+CMS. Docs pages live in `docs/`, blog posts in `docs/blog/`, and the Astro
+Starlight site that renders both in `site/` (symlinked content, deployed to
+[docs.drawcms.com](https://docs.drawcms.com/) from `main`). A merged pull
+request publishes; blog posts support `draft: true` for merge-before-publish
+workflows. Run the site locally with `npm run docs:dev`.
 
 ## Contributing and Security
 

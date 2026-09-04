@@ -5,3 +5,5 @@ public
 .open-next
 .wrangler
 netlify.toml
+site/.astro
+site/dist

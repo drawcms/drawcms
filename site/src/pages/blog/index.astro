@@ -1,0 +1,568 @@
+---
+import StarlightPage from "@astrojs/starlight/components/StarlightPage.astro";
+import { getCollection, type CollectionEntry } from "astro:content";
+import type { StarlightBlogAuthor } from "starlight-blog/schema";
+import BlogAuthor from "../../components/BlogAuthor.astro";
+import BlogThumbnail from "../../components/BlogThumbnail.astro";
+
+const entries = (await getCollection("docs"))
+  .filter(
+    (entry) =>
+      entry.id.startsWith("blog/") &&
+      !entry.id.split("/").at(-1)?.startsWith("_") &&
+      entry.data.date instanceof Date,
+  )
+  .sort((a, b) => b.data.date!.getTime() - a.data.date!.getTime());
+
+const featured = entries.find((entry) => entry.data.featured) ?? entries[0];
+const articles = entries.filter((entry) => entry.id !== featured?.id);
+const tags = [...new Set(entries.flatMap((entry) => entry.data.tags ?? []))].sort((a, b) =>
+  a.localeCompare(b),
+);
+
+const postHref = (id: string) => `/${id.replace(/\/index$/, "")}/`;
+const tagHref = (tag: string) => `/blog/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/`;
+const formatDate = (date: Date) =>
+  new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(date);
+const readingTime = (body: string) => Math.max(1, Math.ceil(body.trim().split(/\s+/).length / 225));
+
+type Authors = CollectionEntry<"docs">["data"]["authors"];
+
+const legacyAuthors: Record<string, StarlightBlogAuthor> = {
+  drawcms: {
+    name: "DrawCMS Team",
+    url: "https://github.com/dimasna/drawcms",
+  },
+};
+
+const getAuthors = (authors: Authors): StarlightBlogAuthor[] => {
+  if (!authors) return [legacyAuthors.drawcms];
+  const values = Array.isArray(authors) ? authors : [authors];
+  return values.map((author) =>
+    typeof author === "string" ? (legacyAuthors[author] ?? { name: author }) : author,
+  );
+};
+---
+
+<StarlightPage
+  frontmatter={{
+    title: "Blog",
+    description: "Release notes, practical workflows, and engineering notes from DrawCMS.",
+    template: "splash",
+    pagefind: false,
+  }}
+  hasSidebar={false}
+>
+  <div class="dm-blog-index">
+    {
+      featured ? (
+        <section class="dm-blog-feature" aria-labelledby="dm-featured-title">
+          <article class="dm-featured-link">
+            <div class="dm-featured-copy">
+              <div class="dm-featured-meta">
+                <span>{featured.data.tags?.[0] ?? "Featured"}</span>
+                <time datetime={featured.data.date!.toISOString()}>{formatDate(featured.data.date!)}</time>
+                <span>{readingTime(featured.body)} min read</span>
+              </div>
+              <h2 id="dm-featured-title">
+                <a class="dm-featured-title-link" href={postHref(featured.id)}>{featured.data.title}</a>
+              </h2>
+              <p>{featured.data.excerpt ?? featured.data.description}</p>
+              <div class="dm-featured-authors" aria-label="Article authors">
+                {getAuthors(featured.data.authors).map((author) => <BlogAuthor author={author} />)}
+              </div>
+            </div>
+            <a
+              class="dm-featured-cover-link"
+              href={postHref(featured.id)}
+              aria-label={`Read ${featured.data.title}`}
+            >
+              <BlogThumbnail cover={featured.data.cover} variant="featured" eager />
+            </a>
+          </article>
+        </section>
+      ) : (
+        <section class="dm-blog-empty" aria-labelledby="dm-blog-empty-title">
+          <h2 id="dm-blog-empty-title">The first DrawCMS story is on its way.</h2>
+          <p>Until then, start with the product documentation.</p>
+          <a href="/quick-start/">Read the quick start <span aria-hidden="true">→</span></a>
+        </section>
+      )
+    }
+
+    {
+      entries.length > 0 && (
+        <nav class="dm-blog-filters" aria-label="Blog categories">
+          <a href="/blog/" aria-current="page">All articles</a>
+          {tags.map((tag) => <a href={tagHref(tag)}>{tag}</a>)}
+          <a class="dm-rss-link" href="/blog/rss.xml">RSS <span aria-hidden="true">↗</span></a>
+        </nav>
+      )
+    }
+
+    {
+      articles.length > 0 && (
+        <section class="dm-blog-latest" aria-labelledby="dm-latest-title">
+          <div class="dm-blog-section-heading">
+            <p>Latest</p>
+            <h2 id="dm-latest-title">More from DrawCMS</h2>
+          </div>
+          <div class="dm-blog-grid">
+            {articles.map((article) => (
+              <article class="dm-article-card">
+                <a class="dm-card-artwork" href={postHref(article.id)} aria-label={`Read ${article.data.title}`}>
+                  <BlogThumbnail cover={article.data.cover} />
+                </a>
+                <div class="dm-card-meta">
+                  <a href={tagHref(article.data.tags?.[0] ?? "news")}>{article.data.tags?.[0] ?? "News"}</a>
+                  <time datetime={article.data.date!.toISOString()}>{formatDate(article.data.date!)}</time>
+                  <span>{readingTime(article.body)} min read</span>
+                </div>
+                <h3><a href={postHref(article.id)}>{article.data.title}</a></h3>
+                <p>{article.data.excerpt ?? article.data.description}</p>
+                <div class="dm-card-authors" aria-label="Article authors">
+                  {getAuthors(article.data.authors).map((author) => (
+                    <BlogAuthor author={author} compact />
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )
+    }
+
+    <aside class="dm-blog-cta" aria-labelledby="dm-blog-cta-title">
+      <div>
+        <p>Start with the product</p>
+        <h2 id="dm-blog-cta-title">Turn a static diagram into a story people can follow.</h2>
+      </div>
+      <a href="/quick-start/">Read the quick start <span aria-hidden="true">→</span></a>
+    </aside>
+  </div>
+</StarlightPage>
+
+<style is:global>
+  html:has(.dm-blog-index) {
+    --sl-content-width: 72rem;
+  }
+
+  html:has(.dm-blog-index) .right-sidebar-container {
+    display: none;
+  }
+
+  html:has(.dm-blog-index) .main-pane {
+    width: 100%;
+  }
+
+  html:has(.dm-blog-index) .content-panel:first-of-type {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  html:has(.dm-blog-index) .content-panel:nth-of-type(2) {
+    border: 0;
+    padding: 0;
+  }
+
+  html:has(.dm-blog-index) .content-panel:nth-of-type(2) > .sl-container {
+    max-width: 72rem;
+    padding-inline: 1.5rem;
+  }
+
+  html:has(.dm-blog-index) .sl-markdown-content {
+    max-width: none;
+  }
+
+  .dm-blog-index {
+    padding-block: clamp(2.5rem, 6vw, 5rem) 5rem;
+  }
+
+  .dm-featured-link {
+    color: inherit;
+    display: grid;
+    gap: 0;
+    grid-template-columns: minmax(17rem, 0.78fr) minmax(0, 1.6fr);
+  }
+
+  .dm-featured-copy {
+    background: var(--sl-color-bg-nav);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.5rem 0 0 0.5rem;
+    display: flex;
+    flex-direction: column;
+    min-height: clamp(18rem, 34vw, 27rem);
+    padding: clamp(1.5rem, 3vw, 2.25rem);
+  }
+
+  .dm-featured-cover-link {
+    display: block;
+    min-height: 2.5rem;
+    text-decoration: none;
+  }
+
+  .dm-featured-meta,
+  .dm-card-meta {
+    align-items: center;
+    color: var(--sl-color-gray-3);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: var(--sl-text-2xs);
+    gap: 0.35rem 0.75rem;
+  }
+
+  .dm-featured-meta span:first-child,
+  .dm-card-meta a {
+    background: var(--sl-color-bg-inline-code);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.25rem;
+    color: var(--sl-color-gray-2);
+    min-height: 1.75rem;
+    padding: 0.25rem 0.5rem;
+    text-decoration: none;
+    text-transform: capitalize;
+  }
+
+  .dm-featured-copy h2 {
+    color: var(--sl-color-white);
+    font-family: var(--dm-font-display);
+    font-size: clamp(2rem, 3.2vw, 2.75rem);
+    font-weight: 400;
+    letter-spacing: -0.045em;
+    line-height: 1.02;
+    margin: clamp(2rem, 5vw, 4rem) 0 0;
+  }
+
+  .dm-featured-copy h2 a {
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-decoration: none;
+    transition: color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-featured-copy > p {
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-sm);
+    line-height: 1.65;
+    margin: 1rem 0 0;
+  }
+
+  .dm-featured-authors,
+  .dm-card-authors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+  }
+
+  .dm-featured-authors {
+    margin-top: auto;
+    padding-top: 2rem;
+  }
+
+  .dm-featured-title-link:hover,
+  .dm-featured-title-link:focus-visible {
+    color: var(--sl-color-text-accent);
+  }
+
+  .dm-featured-title-link:active,
+  .dm-featured-cover-link:active,
+  .dm-card-artwork:active,
+  .dm-article-card h3 a:active,
+  .dm-blog-cta > a:active {
+    transform: translateY(1px);
+  }
+
+  .dm-blog-filters {
+    align-items: center;
+    border-bottom: 1px solid var(--sl-color-hairline-light);
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 2.5rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    scrollbar-width: thin;
+  }
+
+  .dm-blog-filters a {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 0.25rem;
+    color: var(--sl-color-gray-3);
+    display: inline-flex;
+    flex: 0 0 auto;
+    min-height: 2.5rem;
+    padding: 0.45rem 0.75rem;
+    text-decoration: none;
+    text-transform: capitalize;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-blog-filters a:hover {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-white);
+  }
+
+  .dm-blog-filters a[aria-current="page"] {
+    background: var(--sl-color-accent-low);
+    border-color: color-mix(in srgb, var(--sl-color-text-accent) 24%, transparent);
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+
+  .dm-blog-filters .dm-rss-link {
+    margin-inline-start: auto;
+  }
+
+  .dm-blog-latest {
+    padding-block: clamp(3.5rem, 7vw, 6rem);
+  }
+
+  .dm-blog-section-heading p,
+  .dm-blog-cta p {
+    color: var(--sl-color-text-accent);
+    font-size: var(--sl-text-2xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    margin: 0;
+    text-transform: uppercase;
+  }
+
+  .dm-blog-section-heading h2,
+  .dm-blog-cta h2 {
+    color: var(--sl-color-white);
+    font-family: var(--dm-font-display);
+    font-weight: 400;
+    letter-spacing: -0.04em;
+  }
+
+  .dm-blog-section-heading h2 {
+    font-size: clamp(2rem, 4vw, 3rem);
+    line-height: 1;
+    margin: 0.65rem 0 0;
+  }
+
+  .dm-blog-grid {
+    display: grid;
+    gap: 2.5rem 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 2rem;
+  }
+
+  .dm-article-card {
+    min-width: 0;
+  }
+
+  .dm-article-card:only-child {
+    display: grid;
+    gap: 0 1.5rem;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(18rem, 1.2fr) minmax(16rem, 0.8fr);
+    max-width: 52rem;
+  }
+
+  .dm-article-card:only-child .dm-card-artwork {
+    grid-row: 1 / span 5;
+  }
+
+  .dm-card-artwork {
+    display: block;
+    min-height: 2.5rem;
+    text-decoration: none;
+  }
+
+  .dm-card-meta {
+    margin-top: 1rem;
+  }
+
+  .dm-card-meta a {
+    align-items: center;
+    display: inline-flex;
+    min-height: 2.5rem;
+    transition:
+      border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-card-meta a:hover {
+    border-color: var(--sl-color-text-accent);
+    color: var(--sl-color-text-accent);
+  }
+
+  .dm-article-card h3 {
+    font-family: var(--sl-font);
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+    line-height: 1.35;
+    margin: 0.9rem 0 0;
+  }
+
+  .dm-article-card h3 a {
+    align-items: center;
+    color: var(--sl-color-white);
+    display: inline-flex;
+    min-height: 2.5rem;
+    text-decoration: none;
+    transition: color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-article-card h3 a:hover {
+    color: var(--sl-color-text-accent);
+  }
+
+  .dm-article-card > p {
+    color: var(--sl-color-gray-3);
+    display: -webkit-box;
+    font-size: var(--sl-text-sm);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-height: 1.6;
+    margin: 0.65rem 0 0;
+    overflow: hidden;
+  }
+
+  .dm-card-authors {
+    margin-top: 0.25rem;
+  }
+
+  .dm-blog-cta {
+    align-items: end;
+    background: var(--sl-color-bg-nav);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.5rem;
+    display: grid;
+    gap: 2rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .dm-blog-cta h2 {
+    font-size: clamp(2rem, 4.5vw, 3.5rem);
+    line-height: 1;
+    margin: 0.75rem 0 0;
+    max-width: 17ch;
+  }
+
+  .dm-blog-cta > a {
+    align-items: center;
+    background: var(--sl-color-text-accent);
+    border-radius: 0.25rem;
+    color: var(--sl-color-text-invert);
+    display: inline-flex;
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    gap: 0.75rem;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.6rem 1rem;
+    text-decoration: none;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-blog-cta > a:hover {
+    background: var(--sl-color-accent-high);
+  }
+
+  .dm-blog-empty {
+    border-block: 1px solid var(--sl-color-hairline-light);
+    padding-block: 5rem;
+  }
+
+  .dm-blog-empty h2 {
+    color: var(--sl-color-white);
+    font-family: var(--dm-font-display);
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 400;
+    margin: 0;
+  }
+
+  .dm-blog-empty p {
+    color: var(--sl-color-gray-3);
+  }
+
+  .dm-blog-empty a {
+    color: var(--sl-color-text-accent);
+    display: inline-flex;
+    min-height: 2.5rem;
+  }
+
+  @media (hover: hover) {
+    .dm-featured-cover-link:hover .dm-blog-thumbnail,
+    .dm-card-artwork:hover .dm-blog-thumbnail {
+      border-color: color-mix(in srgb, var(--sl-color-text-accent) 42%, var(--sl-color-hairline-light));
+    }
+  }
+
+  @media (max-width: 63.99rem) {
+    .dm-featured-link {
+      grid-template-columns: minmax(15rem, 0.85fr) minmax(0, 1.15fr);
+    }
+
+    .dm-blog-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 49.99rem) {
+    html:has(.dm-blog-index) .content-panel:nth-of-type(2) > .sl-container {
+      padding-inline: 1rem;
+    }
+
+    .dm-blog-index {
+      padding-block-start: 1.5rem;
+    }
+
+    .dm-featured-link {
+      grid-template-columns: 1fr;
+    }
+
+    .dm-featured-copy {
+      border-radius: 0.5rem 0.5rem 0 0;
+      min-height: 22rem;
+    }
+
+    .dm-blog-filters .dm-rss-link {
+      margin-inline-start: 0;
+    }
+
+    .dm-blog-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .dm-article-card:only-child {
+      display: block;
+      max-width: none;
+    }
+
+    .dm-blog-cta {
+      align-items: start;
+      grid-template-columns: 1fr;
+    }
+
+    .dm-blog-cta > a {
+      justify-self: start;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dm-featured-title-link,
+    .dm-featured-cover-link,
+    .dm-card-artwork,
+    .dm-article-card h3 a,
+    .dm-blog-cta > a {
+      transform: none !important;
+    }
+  }
+</style>

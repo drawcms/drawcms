@@ -1,0 +1,279 @@
+---
+import { normalizeAppOrigin, LOCAL_APP_ORIGIN } from "../../plugins/remark-app-origin.mjs";
+
+const APP_URL = normalizeAppOrigin(
+  import.meta.env.PUBLIC_DRAWCMS_APP_URL ??
+    import.meta.env.PUBLIC_DRAWMS_APP_URL ??
+    LOCAL_APP_ORIGIN,
+);
+const GITHUB_URL = "https://github.com/dimasna/drawcms";
+
+const productLinks = [
+  { href: `${APP_URL}/gallery`, label: "Gallery" },
+  { href: `${APP_URL}/pricing`, label: "Pricing" },
+  { href: "/", label: "Documentation", shortLabel: "Docs" },
+];
+---
+
+<nav class="dm-blog-header" aria-label="Blog navigation">
+  <a class="dm-blog-brand" href={APP_URL} aria-label="DrawCMS home">
+    <span class="dm-blog-brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" role="presentation">
+        <path
+          d="M 6 4 L 14 4 C 18.418 4 22 7.582 22 12 C 22 16.418 18.418 20 14 20 L 6 20 L 6 4 Z"
+          opacity="0.45"
+        ></path>
+        <path d="M 6 4 L 10 4 C 14.418 4 18 7.582 18 12 C 18 16.418 14.418 20 10 20 L 6 20 L 6 4 Z"></path>
+      </svg>
+    </span>
+    <span class="dm-blog-wordmark" translate="no"><span>Draw</span><strong>CMS</strong></span>
+  </a>
+
+  <div class="dm-blog-primary-links">
+    {
+      productLinks.map((link) => (
+        <a
+          href={link.href}
+          class:list={{ "dm-blog-docs-link": link.label === "Documentation" }}
+          aria-label={link.label}
+        >
+          <span class="dm-blog-link-label">{link.label}</span>
+          {link.shortLabel && <span class="dm-blog-link-label-short" aria-hidden="true">{link.shortLabel}</span>}
+        </a>
+      ))
+    }
+    <a href="/blog/" aria-current="page">Blog</a>
+  </div>
+
+  <div class="dm-blog-actions">
+    <a
+      class="dm-blog-github"
+      href={GITHUB_URL}
+      target="_blank"
+      rel="noreferrer"
+      aria-label="DrawCMS on GitHub (opens in a new tab)"
+    >
+      <svg viewBox="0 0 24 24" role="presentation" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 .7a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2.23c-3.22.7-3.9-1.36-3.9-1.36-.52-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.71.08-.71 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.27 3.38.97.1-.75.4-1.27.74-1.56-2.57-.3-5.27-1.29-5.27-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.47.11-3.06 0 0 .97-.31 3.16 1.18a10.97 10.97 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.77.11 3.06.74.81 1.19 1.83 1.19 3.09 0 4.41-2.71 5.39-5.29 5.68.42.36.79 1.07.79 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"
+        ></path>
+      </svg>
+    </a>
+    <a class="dm-blog-login" href={`${APP_URL}/login`}>Log in</a>
+    <a class="dm-blog-cta-link" href={`${APP_URL}/signup`}>Create account</a>
+  </div>
+</nav>
+
+<style>
+  .dm-blog-header {
+    align-items: center;
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    height: 100%;
+    margin-inline: auto;
+    max-width: 72rem;
+    width: 100%;
+  }
+
+  .dm-blog-brand,
+  .dm-blog-primary-links a,
+  .dm-blog-actions a {
+    align-items: center;
+    border-radius: 0.25rem;
+    display: inline-flex;
+    min-height: 2.5rem;
+    text-decoration: none;
+  }
+
+  .dm-blog-brand {
+    color: var(--sl-color-white);
+    gap: 0.625rem;
+  }
+
+  .dm-blog-brand-mark {
+    align-items: center;
+    background: var(--sl-color-accent-low);
+    border: 1px solid color-mix(in srgb, var(--sl-color-text-accent) 22%, transparent);
+    border-radius: 0.25rem;
+    color: var(--sl-color-text-accent);
+    display: inline-flex;
+    height: 2rem;
+    justify-content: center;
+    width: 2rem;
+  }
+
+  .dm-blog-brand-mark svg {
+    fill: currentColor;
+    height: 1.5rem;
+    width: 1.5rem;
+  }
+
+  .dm-blog-wordmark {
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    white-space: nowrap;
+  }
+
+  .dm-blog-wordmark strong {
+    color: var(--sl-color-text-accent);
+    font-weight: 600;
+  }
+
+  .dm-blog-primary-links {
+    align-items: center;
+    display: flex;
+    gap: 0.25rem;
+    justify-content: center;
+  }
+
+  .dm-blog-primary-links a,
+  .dm-blog-login {
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    padding-inline: 0.75rem;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-blog-primary-links a:hover,
+  .dm-blog-primary-links a:focus-visible,
+  .dm-blog-login:hover,
+  .dm-blog-login:focus-visible {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-white);
+  }
+
+  .dm-blog-primary-links a[aria-current="page"] {
+    color: var(--sl-color-white);
+    font-weight: 600;
+  }
+
+  .dm-blog-primary-links a[aria-current="page"]::before {
+    background: var(--sl-color-text-accent);
+    border-radius: 999px;
+    content: "";
+    height: 0.375rem;
+    margin-inline-end: 0.5rem;
+    width: 0.375rem;
+  }
+
+  .dm-blog-link-label-short {
+    display: none;
+  }
+
+  .dm-blog-actions {
+    align-items: center;
+    display: flex;
+    gap: 0.25rem;
+    justify-content: end;
+  }
+
+  .dm-blog-github {
+    color: var(--sl-color-gray-3);
+    justify-content: center;
+    padding: 0.625rem;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+    width: 2.5rem;
+  }
+
+  .dm-blog-github:hover,
+  .dm-blog-github:focus-visible {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-text-accent);
+  }
+
+  .dm-blog-github svg {
+    height: 1.125rem;
+    width: 1.125rem;
+  }
+
+  .dm-blog-cta-link {
+    background: var(--sl-color-text-accent);
+    color: var(--sl-color-text-invert);
+    font-size: var(--sl-text-xs);
+    font-weight: 600;
+    justify-content: center;
+    padding-inline: 1rem;
+    white-space: nowrap;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-blog-cta-link:hover,
+  .dm-blog-cta-link:focus-visible {
+    background: var(--sl-color-accent-high);
+  }
+
+  .dm-blog-cta-link:active {
+    transform: translateY(1px);
+  }
+
+  @media (max-width: 63.99rem) {
+    .dm-blog-header {
+      gap: 1rem;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .dm-blog-primary-links {
+      justify-content: end;
+    }
+
+    .dm-blog-primary-links a:not(.dm-blog-docs-link):not([aria-current="page"]) {
+      display: none;
+    }
+
+    .dm-blog-login {
+      display: none !important;
+    }
+  }
+
+  @media (max-width: 39.99rem) {
+    .dm-blog-header {
+      gap: 0.5rem;
+      grid-template-columns: auto 1fr auto;
+    }
+
+    .dm-blog-primary-links a:not(.dm-blog-docs-link) {
+      display: none;
+    }
+
+    .dm-blog-primary-links .dm-blog-docs-link {
+      padding-inline: 0.5rem;
+    }
+
+    .dm-blog-docs-link .dm-blog-link-label {
+      display: none;
+    }
+
+    .dm-blog-docs-link .dm-blog-link-label-short {
+      display: inline;
+    }
+
+    .dm-blog-github {
+      display: none !important;
+    }
+
+    .dm-blog-cta-link {
+      padding-inline: 0.75rem;
+    }
+  }
+
+  @media (max-width: 23rem) {
+    .dm-blog-wordmark {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dm-blog-cta-link {
+      transform: none !important;
+    }
+  }
+</style>
