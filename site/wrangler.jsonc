@@ -1,0 +1,19 @@
+// Docs site: static assets on Cloudflare Workers (assets-only worker, no
+// script). Deployed from .github/workflows/docs-deploy.yml on pushes that
+// touch site/ or docs/, or manually via `npm run docs:deploy`.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "drawcms-docs",
+  "compatibility_date": "2026-08-30",
+  "assets": {
+    "directory": "dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+  },
+  "routes": [
+    {
+      "pattern": "docs.drawcms.com",
+      "custom_domain": true,
+    },
+  ],
+}

@@ -24,6 +24,7 @@
     "docs:dev": "npm --prefix site run dev",
     "docs:build": "npm --prefix site run build",
     "docs:ci": "npm ci --prefix site && npm test --prefix site && npm run build --prefix site",
+    "docs:deploy": "npm run build --prefix site && wrangler deploy --config site/wrangler.jsonc",
     "build:cloudflare": "next build --webpack && opennextjs-cloudflare build --skipNextBuild",
     "preview:cloudflare": "opennextjs-cloudflare preview -- --port 3000",
     "deploy:cloudflare": "opennextjs-cloudflare deploy"

@@ -128,11 +128,13 @@ CMS. Docs pages live in `docs/`, blog posts in `docs/blog/`, and the Astro
 Starlight site that renders both in `site/` (symlinked content, deployed to
 [docs.drawcms.com](https://docs.drawcms.com/) from `main`). A merged pull
 request publishes; blog posts support `draft: true` for merge-before-publish
-workflows. Run the site locally with `npm run docs:dev`. When deploying the
-site (e.g. Vercel with Root Directory `site`), set the Ignored Build Step to
-`git diff --quiet HEAD^ HEAD -- ./site/ ./docs/` so app-only pushes skip the
-docs build while content changes still publish. The main app deploys
-separately and never rebuilds for docs-only changes.
+workflows. Run the site locally with `npm run docs:dev`. Deploys go to
+Cloudflare Workers as static assets (`site/wrangler.jsonc`): a push to `main`
+touching `site/` or `docs/` builds and deploys via GitHub Actions (set the
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets), or
+deploy manually with `PUBLIC_DRAWCMS_APP_URL=https://drawcms.com
+npm run docs:deploy`. The main app deploys separately and never rebuilds for
+docs-only changes.
 
 ## Contributing and Security
 
