@@ -1,0 +1,15 @@
+# Render blueprint backing the "Deploy to Render" README button. The free
+# plan serves the editor fine: it is a client-side, local-first app.
+services:
+  - type: web
+    name: drawcms
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    # The stock start script pins :3002; Render assigns the port instead.
+    startCommand: npx next start -p $PORT
+    # "/" redirects to /editor (307), which Render health checks reject.
+    healthCheckPath: /editor
+    envVars:
+      - key: NODE_VERSION
+        value: "24"

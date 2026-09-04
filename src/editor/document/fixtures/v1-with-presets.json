@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "meta": { "name": "Motion demo (v1)" },
+  "canvas": {},
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "customShape",
+      "position": { "x": 100, "y": 100 },
+      "data": { "label": "Server", "type": "rect", "preset": "Pulse Node", "motionSpeed": 0.5 },
+      "style": { "width": 120, "height": 60 }
+    },
+    {
+      "id": "n2",
+      "type": "customShape",
+      "position": { "x": 300, "y": 100 },
+      "data": { "label": "DB", "type": "cylinder", "preset": "Bounce" },
+      "style": { "width": 90, "height": 100 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n1",
+      "target": "n2",
+      "label": "queries",
+      "data": { "label": "queries", "preset": "Data Flow", "motionLoop": false }
+    }
+  ],
+  "assets": []
+}

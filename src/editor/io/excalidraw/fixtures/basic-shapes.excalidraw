@@ -1,0 +1,69 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "rect1",
+      "type": "rectangle",
+      "x": 100,
+      "y": 100,
+      "width": 160,
+      "height": 80,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#b2f2bb",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "roughness": 0,
+      "opacity": 100,
+      "groupIds": [],
+      "isDeleted": false
+    },
+    {
+      "id": "ell1",
+      "type": "ellipse",
+      "x": 340,
+      "y": 100,
+      "width": 120,
+      "height": 120,
+      "angle": 0,
+      "strokeColor": "#e03131",
+      "backgroundColor": "transparent",
+      "fillStyle": "hachure",
+      "strokeWidth": 1,
+      "roughness": 1,
+      "opacity": 60,
+      "groupIds": ["g1"],
+      "isDeleted": false
+    },
+    {
+      "id": "dia1",
+      "type": "diamond",
+      "x": 540,
+      "y": 100,
+      "width": 120,
+      "height": 90,
+      "angle": 0,
+      "strokeColor": "#1971c2",
+      "backgroundColor": "#a5d8ff",
+      "fillStyle": "solid",
+      "strokeWidth": 1,
+      "roughness": 0,
+      "opacity": 100,
+      "groupIds": [],
+      "isDeleted": false
+    },
+    {
+      "id": "ghost",
+      "type": "rectangle",
+      "x": 0,
+      "y": 0,
+      "width": 100,
+      "height": 100,
+      "isDeleted": true
+    }
+  ],
+  "appState": { "name": "Basic shapes", "gridSize": null },
+  "files": {}
+}

@@ -1,0 +1,50 @@
+{
+  "nodes": [
+    {
+      "id": "1",
+      "position": { "x": 250, "y": 150 },
+      "data": { "label": "Start", "type": "rounded-rect", "preset": "Bounce", "motionSpeed": 0.5 },
+      "type": "customShape",
+      "style": { "width": 160, "height": 80 }
+    },
+    {
+      "id": "2",
+      "position": { "x": 550, "y": 150 },
+      "data": {
+        "label": "Logo",
+        "type": "image",
+        "imageUrl": "data:image/png;base64,iVBORw0KGgo=",
+        "_originalImageUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg="
+      },
+      "type": "customShape",
+      "style": { "width": 160, "height": 90 }
+    },
+    {
+      "id": "3",
+      "position": { "x": 30, "y": 40 },
+      "parentId": "g1",
+      "data": { "label": "Child", "type": "rect" },
+      "type": "customShape"
+    },
+    {
+      "id": "g1",
+      "position": { "x": 10, "y": 20 },
+      "data": { "label": "Group", "type": "group" },
+      "type": "containerShape",
+      "style": { "width": 300, "height": 200 },
+      "zIndex": -1
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1-2",
+      "source": "1",
+      "target": "2",
+      "sourceHandle": "right",
+      "targetHandle": "left",
+      "label": "Flow",
+      "data": { "label": "Flow", "preset": "Data Flow", "motionLoop": false }
+    }
+  ],
+  "name": "Legacy onboarding flow"
+}

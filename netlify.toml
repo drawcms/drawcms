@@ -1,0 +1,11 @@
+# Netlify deploy: the Next.js runtime plugin is declared explicitly so the
+# build never depends on auto-detection. Node 24 matches local CI.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -1,0 +1,21 @@
+<mxfile host="app.diagrams.net" version="24.7.17">
+  <diagram name="Oddballs" id="page-odd">
+    <mxGraphModel dx="800" dy="600" grid="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="img" value="Logo" style="shape=image;image=https://example.com/logo.png;html=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="80" width="120" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="custom" value="Cylinder" style="shape=mxgraph.cisco.storage;cylinderTilt=15;html=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="80" width="80" height="100" as="geometry" />
+        </mxCell>
+        <object id="meta-cell" label="Tagged" tag="priority">
+          <mxCell style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+            <mxGeometry x="500" y="80" width="100" height="60" as="geometry" />
+          </mxCell>
+        </object>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

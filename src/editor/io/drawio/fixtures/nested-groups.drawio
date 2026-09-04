@@ -1,0 +1,19 @@
+<mxfile host="app.diagrams.net" version="24.7.17">
+  <diagram name="Nested" id="page-nested">
+    <mxGraphModel dx="800" dy="600" grid="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="outer" value="System" style="group;container=1;collapsible=0;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="420" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="inner" value="Service" style="group;container=1;collapsible=0;html=1;" vertex="1" parent="outer">
+          <mxGeometry x="80" y="80" width="220" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="worker" value="Worker" style="whiteSpace=wrap;html=1;" vertex="1" parent="inner">
+          <mxGeometry x="120" y="130" width="100" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

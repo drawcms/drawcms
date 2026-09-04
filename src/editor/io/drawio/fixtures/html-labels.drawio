@@ -1,0 +1,19 @@
+<mxfile host="app.diagrams.net" version="24.7.17">
+  <diagram name="Text" id="page-text">
+    <mxGraphModel dx="800" dy="600" grid="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="plain" value="Just text" style="text;html=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="rich" value="&lt;div&gt;Line 1&lt;br&gt;Line 2&lt;/div&gt;&lt;div&gt;&lt;i&gt;note&lt;/i&gt;&lt;/div&gt;" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="140" width="140" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="empty" value="" style="whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="60" width="80" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

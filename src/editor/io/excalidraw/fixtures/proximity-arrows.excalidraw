@@ -1,0 +1,58 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "https://excalidraw.com",
+  "elements": [
+    {
+      "id": "hostA",
+      "type": "rectangle",
+      "x": 100,
+      "y": 100,
+      "width": 150,
+      "height": 80,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "opacity": 100,
+      "isDeleted": false
+    },
+    {
+      "id": "hostB",
+      "type": "rectangle",
+      "x": 420,
+      "y": 240,
+      "width": 150,
+      "height": 80,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "opacity": 100,
+      "isDeleted": false
+    },
+    {
+      "id": "freeArrow",
+      "type": "arrow",
+      "x": 250,
+      "y": 140,
+      "width": 170,
+      "height": 100,
+      "points": [[0, 0], [170, 100]],
+      "strokeColor": "#1971c2",
+      "strokeWidth": 2,
+      "opacity": 100,
+      "isDeleted": false
+    },
+    {
+      "id": "lost",
+      "type": "arrow",
+      "x": 2000,
+      "y": 2000,
+      "width": 60,
+      "height": 60,
+      "points": [[0, 0], [60, 60]],
+      "strokeColor": "#1e1e1e",
+      "opacity": 100,
+      "isDeleted": false
+    }
+  ],
+  "appState": { "name": "Links" },
+  "files": {}
+}

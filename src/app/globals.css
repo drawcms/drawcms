@@ -1,0 +1,21 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../editor/styles/editor.css";
+@import "@xyflow/react/dist/style.css";
+@source "../editor/**/*.{ts,tsx}";
+
+html {
+  font-family: var(--font-drawcms-sans), Inter, ui-sans-serif, system-ui, sans-serif;
+  background: var(--drawcms-canvas);
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: var(--drawcms-canvas);
+  color: var(--drawcms-ink);
+}
+
+::selection {
+  background: var(--drawcms-accent-soft);
+  color: var(--drawcms-ink);
+}

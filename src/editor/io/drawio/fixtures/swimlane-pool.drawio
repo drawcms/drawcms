@@ -1,0 +1,22 @@
+<mxfile host="app.diagrams.net" version="24.7.17">
+  <diagram name="Pool" id="page-pool">
+    <mxGraphModel dx="800" dy="600" grid="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="pool" value="Checkout" style="swimlane;startSize=30;html=1;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="500" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="task1" value="Cart" style="whiteSpace=wrap;html=1;" vertex="1" parent="pool">
+          <mxGeometry x="120" y="120" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="task2" value="Pay" style="whiteSpace=wrap;html=1;" vertex="1" parent="pool">
+          <mxGeometry x="300" y="120" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="flow" style="edgeStyle=orthogonalEdgeStyle;html=1;" edge="1" parent="pool" source="task1" target="task2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
