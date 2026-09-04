@@ -5,11 +5,11 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dimasna/drawcms.git"
+    "url": "git+https://github.com/drawcms/drawcms.git"
   },
-  "homepage": "https://github.com/dimasna/drawcms#readme",
+  "homepage": "https://github.com/drawcms/drawcms#readme",
   "bugs": {
-    "url": "https://github.com/dimasna/drawcms/issues"
+    "url": "https://github.com/drawcms/drawcms/issues"
   },
   "scripts": {
     "dev": "next dev --webpack -p 3002",

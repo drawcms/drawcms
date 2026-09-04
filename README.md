@@ -126,8 +126,11 @@ format, and browser support.
 ## Contributing and Security
 
 Contributions are welcome after accepting the [Contributor License Agreement](CLA.md).
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Please report
-security issues privately using the process in [SECURITY.md](SECURITY.md).
+The official repository is [drawcms/drawcms](https://github.com/drawcms/drawcms) —
+please open issues and pull requests here.
+([dimasna/drawcms-app](https://github.com/dimasna/drawcms-app) is a hackathon-purpose
+repo only.) Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Please report security issues privately using the process in [SECURITY.md](SECURITY.md).
 
 ## License
 
