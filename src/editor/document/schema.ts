@@ -17,7 +17,7 @@ import { storyStateSchema } from "../story/model";
  * - v4: sequence messages are attached edges with explicit message semantics
  * - v5: drops the unplayed scene/track/step timeline; `motion` now carries only
  *   `story`. Element animation continues to live on node/edge `data.preset`.
- *   See content/docs/decisions/003-single-motion-model.md.
+ *   See docs/decisions/003-single-motion-model.md.
  */
 
 export const DOCUMENT_SCHEMA_VERSION = 5 as const;
@@ -123,7 +123,7 @@ export const documentAssetSchema = z
 /**
  * Legacy scene/track/step timeline shape carried by v2–v4 documents. DM-034
  * removed this model from runtime (motion/model.ts) because nothing ever
- * played it back — see content/docs/decisions/003-single-motion-model.md — but old
+ * played it back — see docs/decisions/003-single-motion-model.md — but old
  * documents must still validate through the migration path, so the shape is
  * preserved here for `migrateDocument` to read and discard.
  */

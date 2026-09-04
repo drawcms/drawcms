@@ -10,7 +10,7 @@ import { planFrames } from "../motion/schedule";
  * Performance budgets (DM-033). These assert the model-level hot paths stay
  * within generous, CI-stable limits — they catch order-of-magnitude
  * regressions, not micro-jitter. Record fine-grained numbers with
- * `npm run bench` (see content/docs/performance.md); keep these limits as the
+ * `npm run bench` (see docs/performance.md); keep these limits as the
  * release gate.
  *
  * Baseline hardware: Apple Silicon (arm64), Node 24, 2026-08.

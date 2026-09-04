@@ -9,7 +9,7 @@ import { reconcileMotionTargets } from "../motion/model";
  * Model-level benchmarks (DM-033). Run with `npm run bench`; they do not run
  * in `npm test` (budgets are the release gate — see budgets.test.ts). Pan /
  * zoom / drag rendering is React Flow + DOM work and is measured manually per
- * content/docs/performance.md; these numbers cover what the editor owns: document
+ * docs/performance.md; these numbers cover what the editor owns: document
  * load, serialization (save), and story reconciliation.
  */
 const sizes = [100, 500, 1000] as const;
