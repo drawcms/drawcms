@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-labelledby="title description">
+  <title id="title">Turn a static diagram into a guided story</title>
+  <desc id="description">A dotted DrawCMS canvas connects three labeled story stages: Orient, Focus, and Explain.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="2" fill="#2A332E"/>
+    </pattern>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#63D2A4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#63D2A4" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="1000" fill="#0D110F"/>
+  <rect width="1600" height="1000" fill="url(#grid)"/>
+  <circle cx="1280" cy="145" r="330" fill="url(#glow)" filter="url(#soft-glow)"/>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, sans-serif">
+    <g transform="translate(96 86)">
+      <path d="M0 0h42c48 0 86 38 86 86s-38 86-86 86H0V0Z" fill="#63D2A4" opacity="0.3"/>
+      <path d="M0 0h20c48 0 86 38 86 86s-38 86-86 86H0V0Z" fill="#63D2A4"/>
+      <text x="158" y="63" fill="#63D2A4" font-size="28" font-weight="700" letter-spacing="3">DRAWCMS</text>
+      <text x="158" y="109" fill="#A5AEA9" font-size="24">Guided story workflow</text>
+    </g>
+
+    <text x="96" y="380" fill="#F3F5F4" font-family="Georgia, 'Times New Roman', serif" font-size="88" letter-spacing="-4">From diagram</text>
+    <text x="96" y="474" fill="#F3F5F4" font-family="Georgia, 'Times New Roman', serif" font-size="88" letter-spacing="-4">to guided story.</text>
+    <text x="101" y="548" fill="#A5AEA9" font-size="28">Give every technical explanation a clear path.</text>
+
+    <path d="M204 760C380 760 390 658 584 658s208 154 396 154 208-132 414-132" fill="none" stroke="#63D2A4" stroke-width="5" stroke-linecap="round" stroke-dasharray="4 18"/>
+
+    <g transform="translate(112 704)">
+      <rect width="250" height="116" rx="8" fill="#141916" stroke="#3B4741"/>
+      <text x="28" y="42" fill="#A5AEA9" font-family="ui-monospace, monospace" font-size="18">01</text>
+      <text x="28" y="81" fill="#F3F5F4" font-size="28" font-weight="650">Orient</text>
+      <circle cx="226" cy="58" r="11" fill="#0D110F" stroke="#63D2A4" stroke-width="4"/>
+    </g>
+    <g transform="translate(620 602)">
+      <rect width="250" height="116" rx="8" fill="#141916" stroke="#3B4741"/>
+      <text x="28" y="42" fill="#A5AEA9" font-family="ui-monospace, monospace" font-size="18">02</text>
+      <text x="28" y="81" fill="#F3F5F4" font-size="28" font-weight="650">Focus</text>
+      <circle cx="226" cy="58" r="11" fill="#0D110F" stroke="#63D2A4" stroke-width="4"/>
+    </g>
+    <g transform="translate(1126 660)">
+      <rect width="250" height="116" rx="8" fill="#141916" stroke="#3B4741"/>
+      <text x="28" y="42" fill="#A5AEA9" font-family="ui-monospace, monospace" font-size="18">03</text>
+      <text x="28" y="81" fill="#F3F5F4" font-size="28" font-weight="650">Explain</text>
+      <circle cx="226" cy="58" r="11" fill="#0D110F" stroke="#63D2A4" stroke-width="4"/>
+    </g>
+  </g>
+</svg>
