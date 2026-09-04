@@ -8,6 +8,6 @@ export default defineConfig({
     },
   },
   test: {
-    exclude: ["site/**", "node_modules/**", "**/dist/**"],
+    exclude: ["site/**", "site-blog/**", "node_modules/**", "**/dist/**"],
   },
 });

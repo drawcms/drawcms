@@ -1,10 +1,10 @@
 {
-  "name": "drawcms-docs-site",
+  "name": "drawcms-blog-site",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "build": "rm -rf dist && astro build && cp dist/docs/404.html dist/404.html",
+    "build": "astro build",
     "preview": "astro preview",
     "test": "node --test plugins/*.test.mjs"
   },

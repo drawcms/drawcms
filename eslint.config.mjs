@@ -12,6 +12,7 @@ export default defineConfig([
     "**/node_modules/**",
     "**/public/**",
     "**/site/**",
+    "**/site-blog/**",
     "next-env.d.ts",
   ]),
 ]);

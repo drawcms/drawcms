@@ -1,6 +1,8 @@
 // Docs site: static assets on Cloudflare Workers (assets-only worker, no
-// script). Deployed from .github/workflows/docs-deploy.yml on pushes that
-// touch site/ or docs/, or manually via `npm run docs:deploy`.
+// script). Served at drawcms.com/docs via a path route — the app worker owns
+// drawcms.com/*, so it must be attached with a route pattern (not a custom
+// domain, which would take precedence over this route). Deployed from
+// .github/workflows/docs-deploy.yml or via `npm run docs:deploy`.
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "drawcms-docs",
@@ -12,8 +14,8 @@
   },
   "routes": [
     {
-      "pattern": "docs.drawcms.com",
-      "custom_domain": true,
+      "pattern": "drawcms.com/docs*",
+      "zone_name": "drawcms.com",
     },
   ],
 }

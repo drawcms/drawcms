@@ -7,3 +7,5 @@ public
 netlify.toml
 site/.astro
 site/dist
+site-blog/.astro
+site-blog/dist

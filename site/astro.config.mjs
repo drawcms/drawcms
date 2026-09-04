@@ -1,9 +1,8 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
-import starlightBlog from "starlight-blog";
 import { remarkAppOrigin, resolveAppOrigin } from "./plugins/remark-app-origin.mjs";
 import { remarkContentLinks } from "./plugins/remark-content-links.mjs";
 
@@ -14,15 +13,6 @@ const GITHUB_URL = "https://github.com/drawcms/drawcms";
 const APP_ORIGIN = resolveAppOrigin(
   process.env.PUBLIC_DRAWCMS_APP_URL ?? process.env.PUBLIC_DRAWMS_APP_URL,
 );
-
-function contentRef() {
-  try {
-    const pin = JSON.parse(readFileSync(path.join(siteRoot, "content.config.json"), "utf8"));
-    return pin.tag ?? "main";
-  } catch {
-    return "main";
-  }
-}
 
 const SIDEBAR_GROUPS = [
   {
@@ -82,8 +72,6 @@ function buildSidebar() {
       continue;
     }
 
-    if (entry === "blog") continue;
-
     const items = readdirSync(fullPath)
       .filter((file) => !file.startsWith("_") && /\.(md|mdx)$/.test(file))
       .map((file) => groupNameToSlug(fullPath, file));
@@ -119,17 +107,26 @@ function buildSidebar() {
 }
 
 export default defineConfig({
-  site: "https://docs.drawcms.com",
+  // Served at drawcms.com/docs by the drawcms-docs Worker (route pattern
+  // drawcms.com/docs*); the blog lives at drawcms.com/blog (site-blog/).
+  site: "https://drawcms.com",
+  base: "/docs",
+  // Emit the /docs prefix into the asset tree so the drawcms-docs Worker can
+  // serve drawcms.com/docs* straight from its assets (URLs and file paths align).
+  outDir: "dist/docs",
   markdown: {
     remarkPlugins: [
       [remarkAppOrigin, { appOrigin: APP_ORIGIN }],
-      [remarkContentLinks, { githubBase: GITHUB_URL, ref: contentRef(), contentRoot: docsDir }],
+      [
+        remarkContentLinks,
+        { githubBase: GITHUB_URL, ref: "main", contentRoot: docsDir, docsPrefix: "docs/" },
+      ],
     ],
   },
   integrations: [
     starlight({
       title: "DrawCMS Docs",
-      description: "Documentation, guides, and blog for DrawCMS — animated technical diagrams.",
+      description: "Documentation and guides for DrawCMS — animated technical diagrams.",
       logo: { src: "./public/logo.svg" },
       favicon: "/favicon.svg",
       customCss: ["./src/styles/custom.css"],
@@ -138,18 +135,6 @@ export default defineConfig({
         SiteTitle: "./src/components/SiteTitle.astro",
       },
       social: [{ icon: "github", label: "GitHub", href: GITHUB_URL }],
-      plugins: [
-        starlightBlog({
-          title: "Blog",
-          metrics: { readingTime: true },
-          authors: {
-            drawcms: {
-              name: "DrawCMS Team",
-              url: GITHUB_URL,
-            },
-          },
-        }),
-      ],
       sidebar: buildSidebar(),
     }),
   ],

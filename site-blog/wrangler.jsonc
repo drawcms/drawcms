@@ -1,0 +1,48 @@
+// Blog: static assets on Cloudflare Workers (assets-only worker, no script).
+// Served at drawcms.com/blog via a path route — the app worker owns
+// drawcms.com/*, so it must be attached with a route pattern (not a custom
+// domain, which would take precedence over this route). Deployed from
+// .github/workflows/docs-deploy.yml or via `npm run blog:deploy`.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "drawcms-blog",
+  "compatibility_date": "2026-08-30",
+  "assets": {
+    "directory": "dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page",
+  },
+  "routes": [
+    {
+      "pattern": "drawcms.com/blog*",
+      "zone_name": "drawcms.com",
+    },
+    // The blog builds at base "/" so its root-level assets need their own
+    // path routes (the app worker owns drawcms.com/*). Any new root-level
+    // public asset added to site-blog must get a route here.
+    {
+      "pattern": "drawcms.com/_astro*",
+      "zone_name": "drawcms.com",
+    },
+    {
+      "pattern": "drawcms.com/pagefind*",
+      "zone_name": "drawcms.com",
+    },
+    {
+      "pattern": "drawcms.com/favicon.svg",
+      "zone_name": "drawcms.com",
+    },
+    {
+      "pattern": "drawcms.com/logo.svg",
+      "zone_name": "drawcms.com",
+    },
+    {
+      "pattern": "drawcms.com/sitemap-index.xml",
+      "zone_name": "drawcms.com",
+    },
+    {
+      "pattern": "drawcms.com/sitemap-0.xml",
+      "zone_name": "drawcms.com",
+    },
+  ],
+}

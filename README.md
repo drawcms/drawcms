@@ -118,22 +118,22 @@ npm run ci         # lint → format → typecheck → test (360 tests) → buil
 
 ## Documentation
 
-Guides and release notes live on the docs site:
-[docs.drawcms.com](https://docs.drawcms.com/) — quick start, core
-concepts, self-hosting, plugin & host API, WebMCP agent authoring, document
-format, and browser support.
+Guides and release notes live at [drawcms.com/docs](https://drawcms.com/docs/)
+and the blog at [drawcms.com/blog](https://drawcms.com/blog/) — quick start,
+core concepts, self-hosting, plugin & host API, WebMCP agent authoring,
+document format, and browser support.
 
-The docs site and its content are part of this repository — GitHub is the
-CMS. Docs pages live in `docs/`, blog posts in `docs/blog/`, and the Astro
-Starlight site that renders both in `site/` (symlinked content, deployed to
-[docs.drawcms.com](https://docs.drawcms.com/) from `main`). A merged pull
-request publishes; blog posts support `draft: true` for merge-before-publish
-workflows. Run the site locally with `npm run docs:dev`. Deploys go to
-Cloudflare Workers as static assets (`site/wrangler.jsonc`): a push to `main`
-touching `site/` or `docs/` builds and deploys via GitHub Actions (set the
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets), or
-deploy manually with `PUBLIC_DRAWCMS_APP_URL=https://drawcms.com
-npm run docs:deploy`. The main app deploys separately and never rebuilds for
+The docs and blog are part of this repository — GitHub is the CMS. Docs pages
+live in `docs/`, blog posts in `blog/`. Two Astro sites render them:
+`site/` (docs, served at `drawcms.com/docs`) and `site-blog/` (blog, served at
+`drawcms.com/blog`), both as static assets on Cloudflare Workers next to the
+app worker, routed by path (`drawcms.com/docs*`, `drawcms.com/blog*`). A
+merged pull request touching the sites or content publishes; blog posts
+support `draft: true` for merge-before-publish workflows. Run locally with
+`npm run docs:dev` (:4321) and `npm run blog:dev` (:4322). Deploys run via
+GitHub Actions (set the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+repository secrets) or manually with `npm run docs:deploy` and
+`npm run blog:deploy`. The main app deploys separately and never rebuilds for
 docs-only changes.
 
 ## Contributing and Security
