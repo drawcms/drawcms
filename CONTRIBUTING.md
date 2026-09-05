@@ -35,7 +35,17 @@ public API at `src/editor/index.ts`); the host application shell lives in
 
 Deeper contributor reading: [Plugin & host API](docs/plugin-api.md),
 [Design system](docs/design-system.md), [Performance budgets](docs/performance.md),
-and the ADRs in [docs/decisions/](docs/decisions/).
+and the ADRs in [adr/](adr/).
+
+### Dependency overrides
+
+Some dependencies are pinned through npm `overrides` in `package.json`
+(`postcss`, `sharp`, `js-yaml`, `brace-expansion`, `@babel/core`, `nanoid`).
+These are audit-driven pins, not upgrades: they force the patched versions the
+pinned Next.js release (and current lint tooling) should have resolved to.
+Remove an override only after the selected upstream releases declare
+non-vulnerable compatible versions and a production `npm audit` stays clean;
+note the advisory that motivated the pin in the removal commit.
 
 ## Pull requests
 

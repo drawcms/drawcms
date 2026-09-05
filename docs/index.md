@@ -41,4 +41,4 @@ hero:
 
 ## About
 
-DrawCMS is open-source software licensed under [GNU AGPL v3.0 only](https://github.com/drawcms/drawcms/blob/main/LICENSE). Read [ADR 001](decisions/001-licensing-and-repository-boundary.md) for the OSS and Cloud boundary, or visit the [source repository](https://github.com/drawcms/drawcms) to contribute.
+DrawCMS is open-source software licensed under [GNU AGPL v3.0 only](https://github.com/drawcms/drawcms/blob/main/LICENSE). Read [ADR 001](../adr/001-licensing-and-repository-boundary.md) for the OSS and Cloud boundary, or visit the [source repository](https://github.com/drawcms/drawcms) to contribute.

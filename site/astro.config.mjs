@@ -35,24 +35,9 @@ const SIDEBAR_GROUPS = [
       "browser-support",
       "accessibility",
       "performance",
-      "dependency-overrides",
     ],
   },
 ];
-
-const GROUP_ORDER = ["decisions"];
-
-const GROUP_LABELS = {
-  decisions: "Decisions",
-};
-
-function humanize(name) {
-  return GROUP_LABELS[name] ?? name.charAt(0).toUpperCase() + name.slice(1);
-}
-
-function groupNameToSlug(dirPath, fileName) {
-  return path.join(path.basename(dirPath), fileName.replace(/\.(md|mdx)$/, ""));
-}
 
 function buildSidebar() {
   if (!existsSync(docsDir)) {
@@ -61,31 +46,15 @@ function buildSidebar() {
 
   const entries = readdirSync(docsDir);
   const topLevel = [];
-  const groups = [];
 
   for (const entry of entries) {
     if (entry.startsWith("_") || /^index\.(md|mdx)$/.test(entry)) continue;
 
     const fullPath = path.join(docsDir, entry);
-    if (!statSync(fullPath).isDirectory()) {
-      if (/\.(md|mdx)$/.test(entry)) topLevel.push(entry.replace(/\.(md|mdx)$/, ""));
-      continue;
+    if (!statSync(fullPath).isDirectory() && /\.(md|mdx)$/.test(entry)) {
+      topLevel.push(entry.replace(/\.(md|mdx)$/, ""));
     }
-
-    const items = readdirSync(fullPath)
-      .filter((file) => !file.startsWith("_") && /\.(md|mdx)$/.test(file))
-      .map((file) => groupNameToSlug(fullPath, file));
-    if (items.length > 0) groups.push({ name: entry, label: humanize(entry), items: items.sort() });
   }
-
-  groups.sort((a, b) => {
-    const indexA = GROUP_ORDER.indexOf(a.name);
-    const indexB = GROUP_ORDER.indexOf(b.name);
-    if (indexA === -1 && indexB === -1) return a.name.localeCompare(b.name);
-    if (indexA === -1) return 1;
-    if (indexB === -1) return -1;
-    return indexA - indexB;
-  });
 
   const sidebar = [];
   const remaining = new Set(topLevel);
@@ -99,9 +68,6 @@ function buildSidebar() {
 
   if (remaining.size > 0) {
     sidebar.push({ label: "More", items: [...remaining].sort() });
-  }
-  for (const group of groups) {
-    sidebar.push({ label: group.label, items: group.items });
   }
   return sidebar;
 }

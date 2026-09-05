@@ -73,7 +73,7 @@ Earlier document versions (through v4) also carried a separate scene/track/step
 independently of the story. Nothing in the shipped editor ever played that
 timeline back, so v5 removes it from the runtime model entirely rather than
 building a player for it. See
-[ADR 003](decisions/003-single-motion-model.md) for the reasoning.
+[ADR 003](../adr/003-single-motion-model.md) for the reasoning.
 `migrateDocument` still reads and discards the old shape when opening a v1–v4
 document (falling back to deriving a story from its step labels if the
 document had no separate story of its own), so nothing narratively meaningful

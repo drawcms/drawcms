@@ -50,7 +50,7 @@ clients); features are built through the adapter and contribution surfaces.
 ### 1 → 2
 
 The unplayed scene/track/step motion timeline was removed from the runtime
-model (see [ADR 003](decisions/003-single-motion-model.md)); `motion` now
+model (see [ADR 003](../adr/003-single-motion-model.md)); `motion` now
 carries only `story`. This did not change the plugin contribution shape
 (`EditorPlugin` fields are unaffected), but it is a breaking change to the
 document's `motion` section and to WebMCP's motion-preview tool, so

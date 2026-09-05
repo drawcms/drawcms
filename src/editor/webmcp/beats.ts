@@ -9,7 +9,7 @@ import {
 
 /**
  * Beats are the intent layer for agent-authored motion and narration
- * (docs/decisions/003-single-motion-model.md): an agent describes what a
+ * (adr/003-single-motion-model.md): an agent describes what a
  * moment in the explanation means, and DrawCMS resolves that into a
  * concrete preset, routing, and story step using the same
  * VISUAL_RELATIONSHIP_REGISTRY / VISUAL_MOTION_REGISTRY the recommendation

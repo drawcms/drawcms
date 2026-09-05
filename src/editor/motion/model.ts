@@ -10,7 +10,7 @@ import { createEmptyStory, sanitizeStory, storyStateSchema } from "../story/mode
  * exists only to carry the presentation story: an earlier scene/track/step
  * timeline lived here too, but nothing ever played it back, so it was
  * removed rather than wired up. See
- * docs/decisions/003-single-motion-model.md.
+ * adr/003-single-motion-model.md.
  */
 
 export const motionStateSchema = z
