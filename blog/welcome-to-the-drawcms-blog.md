@@ -29,8 +29,8 @@ Everything runs local-first in the browser. No account, no server, no tracking.
 
 Both the documentation and this blog are plain Markdown files in the [open-source repository](https://github.com/drawcms/drawcms):
 
-- `docs/` — the documentation site (served at [drawcms.com/docs](https://drawcms.com/docs/))
-- `blog/` — these posts (served at [drawcms.com/blog](https://drawcms.com/blog/))
+- `docs/` — the documentation site (served at [drawcms.com/docs](https://drawcms.com/docs))
+- `blog/` — these posts (served at [drawcms.com/blog](https://drawcms.com/blog))
 
 The docs site is built with [Astro Starlight](https://starlight.astro.build/) and [Starlight Blog](https://github.com/HiDeoo/starlight-blog). Because the content is just Markdown in a public repository, anyone can fix a typo, improve a guide, or propose a tutorial with a pull request.
 

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "rm -rf dist && astro build && node scripts/normalize-urls.mjs",
     "preview": "astro preview",
     "test": "node --test plugins/*.test.mjs"
   },

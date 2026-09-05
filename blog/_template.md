@@ -62,5 +62,5 @@ authors:
 
 - Write for someone who just opened the editor for the first time.
 - Prefer short sections with headings; code blocks get a copy button and syntax highlighting.
-- Internal links: docs pages use `/docs/slug/` paths (e.g. `/docs/quick-start/`), other posts use `/blog/slug/`.
+- Internal links: docs pages use `/docs/slug` paths (e.g. `/docs/quick-start`), other posts use `/blog/slug`.
 - Mention release versions and dates so readers can tell how current the post is.

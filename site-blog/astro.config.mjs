@@ -18,6 +18,8 @@ export default defineConfig({
   // Served at drawcms.com/blog by the drawcms-blog Worker (route pattern
   // drawcms.com/blog*); the docs live at drawcms.com/docs (site/).
   site: "https://drawcms.com",
+  // Extensionless canonical URLs (/blog/welcome-to-the-drawcms-blog).
+  build: { format: "file" },
   markdown: {
     remarkPlugins: [
       [remarkAppOrigin, { appOrigin: APP_ORIGIN }],

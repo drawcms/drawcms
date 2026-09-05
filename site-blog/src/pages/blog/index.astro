@@ -20,8 +20,8 @@ const tags = [...new Set(entries.flatMap((entry) => entry.data.tags ?? []))].sor
   a.localeCompare(b),
 );
 
-const postHref = (id: string) => `/${id.replace(/\/index$/, "")}/`;
-const tagHref = (tag: string) => `/blog/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}/`;
+const postHref = (id: string) => `/${id.replace(/\/index$/, "")}`;
+const tagHref = (tag: string) => `/blog/tags/${tag.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 const formatDate = (date: Date) =>
   new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(date);
 const readingTime = (body: string) => Math.max(1, Math.ceil(body.trim().split(/\s+/).length / 225));

@@ -7,7 +7,7 @@ function isExternal(url) {
 
 function toSlug(relativePath, prefix) {
   const withoutExt = relativePath.replace(/\.(md|mdx)$/, "");
-  return withoutExt ? `/${prefix}${withoutExt}/` : `/${prefix}`;
+  return withoutExt ? `/${prefix}${withoutExt}` : `/${prefix}`;
 }
 
 export function remarkContentLinks(options) {
@@ -45,7 +45,7 @@ export function remarkContentLinks(options) {
 
       if (repoPath === "blog" || repoPath.startsWith("blog/")) {
         if (repoPath === "blog" || repoPath === "blog/") {
-          node.url = "/blog/" + hash;
+          node.url = "/blog" + hash;
           return;
         }
         if (/\.(md|mdx)$/.test(repoPath)) {

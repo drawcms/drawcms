@@ -111,6 +111,8 @@ export default defineConfig({
   // drawcms.com/docs*); the blog lives at drawcms.com/blog (site-blog/).
   site: "https://drawcms.com",
   base: "/docs",
+  // Extensionless canonical URLs (/docs/quick-start, not /docs/quick-start/).
+  build: { format: "file" },
   // Emit the /docs prefix into the asset tree so the drawcms-docs Worker can
   // serve drawcms.com/docs* straight from its assets (URLs and file paths align).
   outDir: "dist/docs",
