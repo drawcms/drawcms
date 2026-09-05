@@ -46,7 +46,7 @@ describe("public API surface", () => {
     expect(typeof api.useDocumentPersistence).toBe("function");
 
     // DM-019 motion model: story-only since DM-034 (see
-    // adr/003-single-motion-model.md); element presets are
+    // ADR 003, single-motion-model); element presets are
     // authored directly on node/edge data, not through this API.
     expect(typeof api.createEmptyMotion).toBe("function");
     expect(typeof api.reconcileMotionTargets).toBe("function");

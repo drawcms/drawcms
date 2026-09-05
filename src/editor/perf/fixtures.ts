@@ -35,7 +35,7 @@ export function buildStressDocument(nodeCount: number): DrawCMSDocument {
       fillColor: "#ffffff",
       strokeColor: "#4b5563",
       // Every fourth node carries a legacy element preset (the animation
-      // model actually played back — see adr/003-single-motion-model.md).
+      // model actually played back — see ADR 003, single-motion-model).
       ...(index % 4 === 0 ? { preset: presets[index % presets.length], motionSpeed: 0.5 } : {}),
     },
   }));

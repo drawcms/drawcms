@@ -128,7 +128,7 @@ export { ExcalidrawParseError, importExcalidraw, parseExcalidraw } from "./io/ex
 
 // Motion model (DM-019, reduced to narrative-only by DM-034) and capture
 // planning (DM-022). Element animation lives on node/edge `data.preset`; see
-// adr/003-single-motion-model.md.
+// ADR 003 (single-motion-model).
 export {
   createEmptyMotion,
   motionStateSchema,
