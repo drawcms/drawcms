@@ -79,6 +79,9 @@ const loading = eager ? "eager" : "lazy";
     min-height: 13rem;
     overflow: hidden;
     position: relative;
+    /* Track the containing column, not the aspect-ratio-derived width;
+      without this the figure can exceed its grid track on wide viewports. */
+    width: 100%;
   }
 
   .dm-blog-thumbnail--featured {

@@ -191,6 +191,10 @@ const getAuthors = (authors: Authors): StarlightBlogAuthor[] => {
     grid-template-columns: minmax(17rem, 0.78fr) minmax(0, 1.6fr);
   }
 
+  .dm-featured-link > * {
+    min-width: 0;
+  }
+
   .dm-featured-copy {
     background: var(--sl-color-bg-nav);
     border: 1px solid var(--sl-color-hairline-light);
@@ -530,7 +534,12 @@ const getAuthors = (authors: Authors): StarlightBlogAuthor[] => {
 
     .dm-featured-copy {
       border-radius: 0.5rem 0.5rem 0 0;
-      min-height: 22rem;
+      min-height: 0;
+    }
+
+    .dm-featured-authors {
+      margin-top: 0;
+      padding-top: 1.5rem;
     }
 
     .dm-blog-filters .dm-rss-link {

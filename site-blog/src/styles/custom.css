@@ -493,19 +493,52 @@ html .sl-blog-metadata {
   align-items: center;
   flex-direction: row;
   flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 0.5rem 1rem;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
 }
 
-.sl-blog-metadata-items,
-.sl-blog-author-name {
+/* Author attribution first; date and reading time quiet on the right. */
+html .sl-blog-metadata-authors {
+  order: -1;
+  margin-top: 0;
+}
+
+html .sl-blog-metadata-items:has(+ .sl-blog-metadata-authors),
+html .sl-blog-metadata-authors + .sl-blog-metadata-items {
+  margin-inline-start: auto;
+  text-align: end;
+}
+
+.sl-blog-metadata-items {
   color: var(--sl-color-gray-3);
   font-size: var(--sl-text-xs);
+  white-space: nowrap;
 }
 
-html .sl-blog-metadata-authors,
-html .sl-blog-metadata-badges {
-  margin-top: 0;
+/* Muted date, slightly dimmer separators. */
+.sl-blog-metadata-items .sl-blog-metadata-secondary {
+  color: var(--sl-color-gray-3);
+}
+
+.sl-blog-metadata-items .sl-blog-metadata-secondary::before {
+  color: var(--sl-color-gray-4, var(--sl-color-gray-3));
+  opacity: 0.6;
+}
+
+.sl-blog-author-name {
+  color: var(--sl-color-gray-2);
+  font-size: var(--sl-text-xs);
+  font-weight: 600;
+}
+
+html a.sl-blog-author[href] .sl-blog-author-name {
+  color: var(--sl-color-gray-2);
+  transition: color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+html a.sl-blog-author[href]:hover .sl-blog-author-name,
+html a.sl-blog-author[href]:focus-visible .sl-blog-author-name {
+  color: var(--sl-color-text-accent);
 }
 
 .sl-blog-preview-excerpt {
@@ -603,6 +636,21 @@ a.sl-blog-tag:hover {
   .dm-diagram-embed-frame {
     aspect-ratio: 4 / 5;
     min-height: 26rem;
+  }
+
+  /* Byline stacks: author on top, date/read-time left-aligned below. */
+  html .sl-blog-metadata {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  html .sl-blog-metadata-items:has(+ .sl-blog-metadata-authors),
+  html .sl-blog-metadata-authors + .sl-blog-metadata-items,
+  html .sl-blog-metadata-items {
+    margin-inline-start: 0;
+    text-align: start;
+    white-space: normal;
   }
 }
 
