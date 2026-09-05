@@ -27,10 +27,10 @@ Everything runs local-first in the browser. No account, no server, no tracking.
 
 ## Where the content lives
 
-Both the documentation and this blog are plain Markdown files in the [open-source repository](https://github.com/dimasna/drawcms):
+Both the documentation and this blog are plain Markdown files in the [open-source repository](https://github.com/drawcms/drawcms):
 
-- `docs/` — the documentation site
-- `blog/` — these posts
+- `docs/` — the documentation site (served at [drawcms.com/docs](https://drawcms.com/docs/))
+- `blog/` — these posts (served at [drawcms.com/blog](https://drawcms.com/blog/))
 
 The docs site is built with [Astro Starlight](https://starlight.astro.build/) and [Starlight Blog](https://github.com/HiDeoo/starlight-blog). Because the content is just Markdown in a public repository, anyone can fix a typo, improve a guide, or propose a tutorial with a pull request.
 
@@ -45,6 +45,6 @@ Posts on this blog will cover:
 
 ## Get started
 
-If you are new here, the best place to start is the [five-minute quick start](../docs/quick-start.md). Then join the conversation in the [GitHub discussions](https://github.com/dimasna/drawcms/discussions).
+If you are new here, the best place to start is the [five-minute quick start](../docs/quick-start.md). Then join the conversation in the [GitHub discussions](https://github.com/drawcms/drawcms/discussions).
 
 Happy diagramming.

@@ -3,8 +3,8 @@ title: "DrawCMS document format v5"
 ---
 
 Every saved or exchanged diagram is a versioned JSON document, defined by
-`packages/editor/src/document/schema.ts` (zod). The same schema runs in the
-browser editor, in importers/exporters, in the cloud service, and in tests.
+`src/editor/document/schema.ts` (zod). The same schema runs in the browser
+editor, in importers/exporters, in the cloud service, and in tests.
 
 ```jsonc
 {

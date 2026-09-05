@@ -8,7 +8,7 @@ and hard release budgets.
 
 ## Release budgets (CI-enforced)
 
-`src/perf/budgets.test.ts` runs in `npm test` on every CI build. Budgets are
+`src/editor/perf/budgets.test.ts` runs in `npm test` on every CI build. Budgets are
 generous on purpose: they catch order-of-magnitude regressions, not jitter.
 
 | Operation (1000 nodes unless noted)                                  |  Budget | Baseline* |
@@ -27,10 +27,10 @@ generous on purpose: they catch order-of-magnitude regressions, not jitter.
 Recorded numbers come from vitest bench mode, which is separate from `npm test`:
 
 ```bash
-npm run bench -w packages/editor
+npm run bench
 ```
 
-Fixtures live in `packages/editor/src/perf/fixtures.ts`
+Fixtures live in `src/editor/perf/fixtures.ts`
 (`buildStressDocument(nodeCount)`) — deterministic via a seeded generator;
 sizes 100 / 500 / 1000 nodes with 1.5× edges and dense motion scenes
 (250+ tracks, 2 steps each plus connector-flow tracks).
@@ -46,4 +46,4 @@ release.
 
 GIF/MP4 export capture cost scales with pixel work, so the export menu warns
 when the diagram exceeds 500 nodes and suggests the managed cloud render path
-(`ExportMenu.tsx`).
+(`src/editor/components/topbar/ExportMenu.tsx`).

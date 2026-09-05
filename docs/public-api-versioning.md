@@ -2,10 +2,11 @@
 title: "Public API and plugin versioning policy"
 ---
 
-The `@drawcms/editor` package has two version lines:
+The editor has one version line plus a separate plugin contract version:
 
-1. **Package version** (semver in `packages/editor/package.json`) — normal
-   release hygiene for the npm artifact.
+1. **Repository version** (semver in `package.json`) — normal release hygiene
+   for the application and its in-repo editor (`src/editor/`). The legacy
+   npm package `@drawcms/editor@0.12.4` is frozen and no longer versioned.
 2. **Editor API version** (`EDITOR_API_VERSION`, currently `2`) — the contract
    plugins are written against. This changes rarely and deliberately.
 
@@ -26,24 +27,23 @@ Unknown contribution lookups fail with `CONTRIBUTION_NOT_FOUND`.
 ## Rules for changing the public API
 
 - **Additive changes** (new exports, new optional plugin fields, new optional
-  document fields): allowed within the current API version; bump the package
-  minor version. Unknown document fields are preserved by design
+  document fields): allowed within the current API version; bump the
+  repository minor version. Unknown document fields are preserved by design
   (see docs/document-format.md).
 - **Breaking changes** (renamed/removed exports, changed contribution shapes,
   stricter document fields, new required plugin fields): require a design
   issue, increment `EDITOR_API_VERSION`, give plugin authors a migration note
   in the release description, and keep the previous major committed for at
   least one minor release where technically possible.
-- Plugins must consume only the package's public exports
-  (`@drawcms/editor`), never deep paths such as
-  `@drawcms/editor/dist/...` or workspace source files.
+- Plugins must consume only the editor's public exports (`src/editor/index.ts`,
+  imported as `@/editor` inside this repository), never internal paths.
 
 ## Host rules
 
 Hosts (the OSS app, the cloud app, or any embedding product) pass capabilities
 _to_ the editor — plugins, a persistence adapter, initial documents. The
-editor core must stay free of host-backend imports (Supabase, fetch clients);
-features are built through the adapter and contribution surfaces.
+editor core must stay free of host-backend imports (auth clients, fetch
+clients); features are built through the adapter and contribution surfaces.
 
 ## Migration notes
 

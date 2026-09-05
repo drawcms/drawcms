@@ -4,8 +4,8 @@ title: "Quick start — five minutes to an animated diagram"
 
 ## Try it without installing anything
 
-The hosted OSS editor at `/` of the demo deployment (or your local
-`npm run dev`) needs no account.
+The free hosted editor at [editor.drawcms.com](https://editor.drawcms.com) —
+or your local `npm run dev` — needs no account.
 
 1. Open the app. First launch offers four starting points — pick
    **See motion in action**.
@@ -41,29 +41,33 @@ drag diagram items.
 
 ## Try the embedded player
 
-Use the step controls in this sample to follow a request from the user to the
-database. This is the same presentation surface used by public viewer links.
+Public viewer links and embeds render the same read-only presentation surface
+you see in **Preview**. Embedding is a DrawCMS Cloud feature: publish a
+diagram, create a viewer link, and embed it with a real iframe in Markdown
+systems that allow HTML, including the DrawCMS docs and blog:
 
-<figure class="dm-diagram-embed">
-  <div class="dm-diagram-embed-frame">
-    <iframe
-      src="https://your-drawcms-host.example/embed/sample"
-      title="Interactive architecture request flow"
-      loading="lazy"
-      sandbox="allow-scripts allow-same-origin"
-      allow="fullscreen"
-      referrerpolicy="strict-origin-when-cross-origin"
-    ></iframe>
-  </div>
-  <figcaption>
-    Use the presentation controls to move through the request path.
-    <a href="https://your-drawcms-host.example/embed/sample" target="_blank" rel="noreferrer">Open the diagram in a new tab<span class="sr-only"> (opens in a new tab)</span></a>.
-  </figcaption>
-</figure>
+````markdown
+```html
+<iframe
+  src="https://your-drawcms-host.example/embed/your-viewer-token"
+  title="Interactive system diagram"
+  width="960"
+  height="600"
+  loading="lazy"
+  sandbox="allow-scripts allow-same-origin"
+  allow="fullscreen"
+  referrerpolicy="strict-origin-when-cross-origin"
+  style="width: 100%; aspect-ratio: 16 / 10; border: 0;"
+></iframe>
+```
+````
 
-To embed your own diagram, create a viewer link and replace `sample` with its
-token. Use a real iframe in Markdown systems that allow HTML, including the
-DrawCMS docs and blog:
+GitHub README files do not render iframes. Export the diagram as a GIF, commit
+the GIF beside the README, and link it to the public share page instead:
+
+```markdown
+[![Open interactive system diagram in DrawCMS](./system-diagram.gif)](https://your-drawcms-host.example/share/your-viewer-token)
+```
 
 ````markdown
 ```html
@@ -93,41 +97,24 @@ The guide can be reopened anytime with `File → Show guide`.
 ## Run it locally
 
 ```bash
-git clone https://github.com/dimasna/drawcms.git
+git clone https://github.com/drawcms/drawcms.git
 cd drawcms
 npm install
 npm run dev
 ```
 
-Open <http://localhost:3000> — the landing links into the editor at `/editor`.
+Open <http://localhost:3002> — the landing links into the editor at `/editor`.
 Documents autosave to the browser; nothing leaves the machine.
 
 ## Embed the editor in your app
 
-```bash
-npm install @drawcms/editor @xyflow/react gsap
-npx drawcms-copy-assets ./public
-```
+The editor engine is part of this repository (`src/editor/`, AGPL-3.0). The
+simplest integration is to self-host the app and link or iframe `/editor` —
+see [self-hosting](self-hosting.md). For agent-driven authoring inside your
+own page, enable [WebMCP](webmcp.md) on the hosted editor.
 
-```tsx
-import { DrawCMSEditor } from "@drawcms/editor";
-import "@drawcms/editor/styles.css";
-import "@xyflow/react/dist/style.css";
-
-export default function Page() {
-  return (
-    <div style={{ width: "100vw", height: "100vh" }}>
-      <DrawCMSEditor />
-    </div>
-  );
-}
-```
-
-Your Tailwind v4 CSS must scan the package:
-
-```css
-@source "../node_modules/@drawcms/editor/dist/**/*.js";
-```
+> The legacy npm package `@drawcms/editor@0.12.4` is frozen and no longer
+> receives updates; the current editor is developed in this repository.
 
 Next: [plugin API](plugin-api.md) · [self-hosting](self-hosting.md) ·
 [document format](document-format.md) · [importer limitations](importer-limitations.md)

@@ -8,7 +8,7 @@ preset playback remains available when the user explicitly asks for it.
 
 ## What is automated
 
-`packages/editor/src/components/a11y.test.tsx` runs in CI and locks in:
+`src/editor/components/a11y.test.tsx` runs in CI and locks in:
 
 - Shape palette entries, motion-preset cards, and all menu items are real
   `<button>`s with accessible names — keyboard add/select works.

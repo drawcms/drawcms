@@ -17,11 +17,11 @@ backend MCP server, API key, or agent SDK is added to the application.
 
 ## Enable it
 
-The self-hosted OSS editor enables WebMCP on `/editor`. Package consumers opt in
-per authoring editor:
+The self-hosted OSS editor enables WebMCP on `/editor`. Hosts embedding the
+editor source opt in per authoring editor:
 
 ```tsx
-import { DrawCMSEditor } from "@drawcms/editor";
+import { DrawCMSEditor } from "@/editor";
 
 export function DiagramPage() {
   return <DrawCMSEditor webMcp />;

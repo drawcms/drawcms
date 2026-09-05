@@ -7,7 +7,7 @@ and never fail hard — unsupported content lands in a **non-blocking import
 report** that also tells you exactly what was skipped.
 
 Both importers are covered by fixtures under
-`packages/editor/src/io/{drawio,excalidraw}/fixtures` (see
+`src/editor/io/{drawio,excalidraw}/fixtures` (see
 `unsupported-oddballs.drawio` for the negative cases).
 
 ## draw.io (`.drawio`, `.xml`)

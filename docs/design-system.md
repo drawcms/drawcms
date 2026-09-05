@@ -3,8 +3,9 @@ title: "Design system"
 description: "Theme DrawCMS hosts with the editor's public CSS tokens and font contract."
 ---
 
-DrawCMS ships its public visual tokens through `@drawcms/editor/styles.css`. Hosts must import that
-stylesheet before their own overrides. The editor never bundles a web font; it inherits the host's
+DrawCMS ships its public visual tokens through the editor stylesheet at
+`src/editor/styles/editor.css`. Hosts must load that stylesheet before their
+own overrides. The editor never bundles a web font; it inherits the host's
 font variables and falls back to system fonts.
 
 ## Theme contract
@@ -33,7 +34,8 @@ The public web apps use Inter and Source Serif 4 respectively.
 
 ## Stability
 
-Token names are part of the editor's public CSS surface from `0.12.0`. Values may be refined in a
-minor release, but token removal or semantic reassignment requires a compatibility note. Theme
-changes affect application chrome only; document-authored colors and exported output remain under
-the diagram document's control.
+Token names are part of the editor's public CSS surface since the `0.12`
+line. Values may be refined in a minor release, but token removal or semantic
+reassignment requires a compatibility note. Theme changes affect application
+chrome only; document-authored colors and exported output remain under the
+diagram document's control.

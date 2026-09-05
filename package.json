@@ -20,6 +20,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "bench": "vitest bench src/editor/perf",
     "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build && npm run sites:ci",
     "docs:dev": "npm --prefix site run dev",
     "blog:dev": "npm --prefix site-blog run dev -- --port 4322",

@@ -4,8 +4,8 @@ title: "Plugin & host API"
 
 The editor is extended through a versioned plugin contract
 (`EDITOR_API_VERSION`, currently `2`; see [public-api-versioning.md](public-api-versioning.md)).
-Hosts never import editor internals — everything comes from
-`@drawcms/editor` exports.
+Hosts never import editor internals — everything comes from the editor's
+public exports (`src/editor/index.ts`).
 
 ## What a plugin can contribute
 
@@ -22,12 +22,13 @@ Hosts never import editor internals — everything comes from
 
 ## Minimal example
 
-The package ships `jsonToolsPlugin` —
-[`packages/editor/src/plugins/examples/json-tools.ts`](../packages/editor/src/plugins/examples/json-tools.ts) —
+The editor ships `jsonToolsPlugin` —
+[`src/editor/plugins/examples/json-tools.ts`](https://github.com/drawcms/drawcms/blob/main/src/editor/plugins/examples/json-tools.ts) —
 an importer/exporter pair covered by integration tests. The shape of a plugin:
 
 ```ts
-import { definePlugin, EDITOR_API_VERSION } from "@drawcms/editor";
+// Hosts importing from inside this repository use the editor's public entry.
+import { definePlugin, EDITOR_API_VERSION } from "@/editor";
 
 export const myPlugin = definePlugin({
   id: "acme.drawcms.my-plugin", // unique; registration rejects collisions
@@ -58,7 +59,7 @@ Implement `DocumentPersistenceAdapter` and drive it with
 `createPersistenceController` (or the `useDocumentPersistence` React helper):
 
 ```ts
-import { createPersistenceController, type DocumentPersistenceAdapter } from "@drawcms/editor";
+import { createPersistenceController, type DocumentPersistenceAdapter } from "@/editor";
 
 const adapter: DocumentPersistenceAdapter = {
   id: "my-backend",
@@ -85,8 +86,8 @@ references (tests and the OSS app respectively).
 
 ## Rules that keep the contract stable
 
-- Plugins see only public exports; importing `dist`/source internals is
-  unsupported and will break without notice.
+- Plugins see only public exports (`src/editor/index.ts`); importing editor
+  internals is unsupported and will break without notice.
 - Contribution id collisions across plugins fail registration with
   `PluginRegistrationError`.
 - The host (not the plugin) owns the document lifecycle: open, migrate,
