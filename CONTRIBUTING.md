@@ -21,11 +21,21 @@ Requirements: a supported Node.js release and npm.
 
 ```bash
 npm ci
-npm run build
+npm run dev        # editor on :3002 with hot reload
+npm run test       # vitest suite
+npm run ci         # lint → format:check → typecheck → test → build → sites:ci
 ```
 
-The editor package is in `packages/editor`; the self-hosted application is in
-`packages/web`.
+The repository is a single Next.js app. The editor engine lives in
+`src/editor/` (canvas, document format, motion, presentation, plugin API —
+public API at `src/editor/index.ts`); the host application shell lives in
+`src/app/`. Docs and blog content live in `docs/` and `blog/`, rendered by the
+`site/` and `site-blog/` Astro sites (`npm run docs:dev` on :4321,
+`npm run blog:dev` on :4322).
+
+Deeper contributor reading: [Plugin & host API](docs/plugin-api.md),
+[Design system](docs/design-system.md), [Performance budgets](docs/performance.md),
+and the ADRs in [docs/decisions/](docs/decisions/).
 
 ## Pull requests
 
