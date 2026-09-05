@@ -118,8 +118,8 @@ npm run ci         # lint → format → typecheck → test (360 tests) → buil
 
 ## Documentation
 
-Guides and release notes live at [drawcms.com/docs](https://drawcms.com/docs/)
-and the blog at [drawcms.com/blog](https://drawcms.com/blog/) — quick start,
+Guides and release notes live at [drawcms.com/docs](https://drawcms.com/docs)
+and the blog at [drawcms.com/blog](https://drawcms.com/blog) — quick start,
 core concepts, self-hosting, plugin & host API, WebMCP agent authoring,
 document format, and browser support.
 
