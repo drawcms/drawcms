@@ -12,11 +12,11 @@ authors:
     url: "https://github.com/your-github-handle"
 cover:
   alt: "Describe the cover image for readers who cannot see it"
-  image: ./YYYY-MM-DD-slug-cover.svg
+  image: ./slug-cover.svg
 featured: false
 ---
 
-Copy `_template.md` to `YYYY-MM-DD-slug.md` in this folder and edit it. The filename becomes the post URL slug (`/blog/slug/`).
+Copy `_template.md` to `slug.md` in this folder and edit it. The filename becomes the post URL slug (`/blog/slug/`) — keep it friendly and evergreen, with no date prefix; the publish date comes from the `date` frontmatter field.
 
 ## Frontmatter
 
@@ -35,12 +35,12 @@ Copy `_template.md` to `YYYY-MM-DD-slug.md` in this folder and edit it. The file
 ## Cover images
 
 Store cover images in the OSS repo beside the post (for example,
-`2026-08-29-slug-cover.svg`) and reference them relative to the post file:
+`slug-cover.svg`) and reference them relative to the post file:
 
 ```yaml
 cover:
   alt: "A short description of the cover image"
-  image: ./2026-08-29-slug-cover.svg
+  image: ./slug-cover.svg
 ```
 
 Use a 16:10 image when possible so the blog index can show every cover without layout shift.
@@ -62,5 +62,5 @@ authors:
 
 - Write for someone who just opened the editor for the first time.
 - Prefer short sections with headings; code blocks get a copy button and syntax highlighting.
-- Internal links: docs use `/slug/` paths (e.g. `/quick-start/`), other posts use `/blog/slug/`.
+- Internal links: docs pages use `/docs/slug/` paths (e.g. `/docs/quick-start/`), other posts use `/blog/slug/`.
 - Mention release versions and dates so readers can tell how current the post is.

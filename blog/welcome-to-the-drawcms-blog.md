@@ -13,7 +13,7 @@ authors:
     url: "https://github.com/dimasna"
 cover:
   alt: "DrawCMS documents beside the words Plain Markdown, open to read, open to improve"
-  image: ./2026-08-29-welcome-to-the-drawcms-blog-cover.svg
+  image: ./welcome-to-the-drawcms-blog-cover.svg
 featured: true
 ---
 

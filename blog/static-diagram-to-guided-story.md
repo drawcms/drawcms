@@ -14,7 +14,7 @@ authors:
     url: "https://github.com/dimasna"
 cover:
   alt: "A DrawCMS story path connecting the Orient, Focus, and Explain stages of a technical diagram"
-  image: ./2026-08-30-static-diagram-to-guided-story-cover.svg
+  image: ./static-diagram-to-guided-story-cover.svg
 featured: true
 ---
 
