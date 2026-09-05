@@ -7,7 +7,7 @@ commit on the default branch and to the most recent published package.
 
 ## Reporting a vulnerability
 
-Do not open a public issue. Email `dimasna96@gmail.com` with:
+Do not open a public issue. Email `support@drawcms.com` with:
 
 - the affected version or commit;
 - reproduction steps or a proof of concept;
