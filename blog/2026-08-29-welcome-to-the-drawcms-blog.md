@@ -1,8 +1,8 @@
 ---
 title: "Welcome to the DrawCMS blog"
-date: 2026-08-29
-description: "The DrawCMS docs and blog are now live at docs.drawcms.com, with all content maintained as plain Markdown in the open-source repository."
-excerpt: "Docs and blog are now live at docs.drawcms.com — plain Markdown, open source, and open to contributions."
+date: 2026-09-05
+description: "The DrawCMS docs and blog are now live at drawcms.com/docs and drawcms.com/blog, with all content maintained as plain Markdown in the open-source repository."
+excerpt: "Docs and blog are now live at drawcms.com/docs and drawcms.com/blog — plain Markdown, open source, and open to contributions."
 tags:
   - announcements
   - open-source

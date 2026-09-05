@@ -1,6 +1,6 @@
 ---
 title: "Turn a static architecture diagram into a guided story"
-date: 2026-08-30
+date: 2026-09-05
 description: "A practical DrawCMS workflow for adding focus, motion, and narrative steps to an existing technical diagram."
 excerpt: "Use a simple three-pass workflow to turn an existing architecture diagram into a presentation people can follow."
 tags:

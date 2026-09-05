@@ -11,16 +11,16 @@ and hard release budgets.
 `src/editor/perf/budgets.test.ts` runs in `npm test` on every CI build. Budgets are
 generous on purpose: they catch order-of-magnitude regressions, not jitter.
 
-| Operation (1000 nodes unless noted)                                  |  Budget | Baseline* |
-| -------------------------------------------------------------------- | ------: | --------: |
-| Fixture/document build                                               | 1500 ms |   ~0.3 ms |
-| `deterministicStringify` (save)                                      | 1000 ms |   ~1.7 ms |
-| `parseDocument` (load)                                               | 1500 ms |   ~3.9 ms |
-| `migrateDocument` (legacy load)                                      | 2000 ms |   ~3.9 ms |
-| `stateAt` × 100 seeks over a 250-track scene (playback/export clock) | 1000 ms |     ~5 ms |
-| `planFrames` at 30 fps for the scene duration                        |  500 ms |     <1 ms |
+| Operation (1000 nodes unless noted)                  |  Budget | Baseline* |
+| ---------------------------------------------------- | ------: | --------: |
+| Fixture/document build                               | 1500 ms |   ~0.3 ms |
+| `deterministicStringify` (save)                      | 1000 ms |   ~1.7 ms |
+| `parseDocument` (load)                               | 1500 ms |   ~3.4 ms |
+| `migrateDocument` (legacy load)                      | 2000 ms |   ~3.4 ms |
+| `reconcileMotionTargets` × 100 over a 125-step story | 1000 ms |   ~0.4 ms |
+| `planFrames` at 30 fps for the scene duration        |  500 ms |     <1 ms |
 
-\* Baseline recorded 2026-08-11 on Apple Silicon (arm64), Node 24, vitest 4.
+\* Baseline recorded 2026-09-05 on Apple Silicon (arm64), Node 24, vitest 4.
 
 ## Benchmarks
 
