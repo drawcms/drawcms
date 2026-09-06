@@ -4,8 +4,8 @@ title: "Quick start — five minutes to an animated diagram"
 
 ## Try it without installing anything
 
-The free hosted editor at [editor.drawcms.com](https://editor.drawcms.com) —
-or your local `npm run dev` — needs no account.
+Run the app locally with `npm run dev` (see [Run it locally](#run-it-locally))
+or self-host it — see [self-hosting](self-hosting.md). No account needed.
 
 1. Open the app. First launch offers four starting points — pick
    **See motion in action**.

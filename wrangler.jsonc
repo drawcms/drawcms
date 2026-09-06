@@ -8,12 +8,7 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS",
   },
-  "routes": [
-    {
-      "pattern": "editor.drawcms.com",
-      "custom_domain": true,
-    },
-  ],
+  "routes": [],
   "observability": {
     "enabled": true,
   },

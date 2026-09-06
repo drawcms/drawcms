@@ -34,8 +34,7 @@ security headers (CSP, HSTS) in `next.config.ts`:
 - **Render** — `render.yaml` blueprint (free plan works; the app is
   client-side and local-first).
 - **Cloudflare Workers** — `npm run build:cloudflare` (OpenNext, pinned
-  `@opennextjs/cloudflare`) and `npm run deploy:cloudflare`. The public
-  editor itself runs this way at `editor.drawcms.com`.
+  `@opennextjs/cloudflare`) and `npm run deploy:cloudflare`.
 - **Any Node host** — `output: "standalone"` produces a self-contained
   server bundle under `.next/standalone`.
 
