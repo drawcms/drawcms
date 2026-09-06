@@ -254,6 +254,17 @@ export interface DrawCMSEditorProps {
   webMcp?: boolean;
   /** Called after the editor has committed and yielded one animation frame. */
   onReady?: () => void;
+  /**
+   * Hands the host the animate-toggle controller (DM-108a): preset tweens —
+   * the frames an animated GIF export varies between — only exist while the
+   * toggle is on. Hosts driving headless export flows (e.g. "Embed to
+   * GitHub") use it to force-animating around the capture and restore the
+   * author's toggle state afterwards.
+   */
+  animationControl?: (control: {
+    isAnimating: () => boolean;
+    setAnimating: (value: boolean) => void;
+  }) => void;
 }
 
 export function DrawCMSEditor({
@@ -288,6 +299,7 @@ export function DrawCMSEditor({
   paidExportUpgradeFallback,
   webMcp = false,
   onReady,
+  animationControl,
 }: DrawCMSEditorProps) {
   useEffect(() => {
     if (!onReady) return;
@@ -422,6 +434,22 @@ export function DrawCMSEditor({
       else setDirty(true);
     },
   });
+
+  // Hand the animate-toggle controller to the host once per mount (DM-108a).
+  // The ref indirection keeps the callbacks reading fresh toggle state on
+  // every invocation without re-running the handoff.
+  const animationControlRef = useRef(animationControl);
+  animationControlRef.current = animationControl;
+  const stateForControlRef = useRef(state);
+  stateForControlRef.current = state;
+  useEffect(() => {
+    const callback = animationControlRef.current;
+    if (!callback) return;
+    callback({
+      isAnimating: () => stateForControlRef.current.isGlobalAnimating,
+      setAnimating: (value) => stateForControlRef.current.setIsGlobalAnimating(value),
+    });
+  }, []);
 
   // Elements panel collapse/expand: state flips immediately, the panel stays
   // mounted while its width transition (w-72 <-> w-12) plays out.
