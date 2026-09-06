@@ -202,6 +202,13 @@ export interface DrawCMSEditorProps {
     width: number;
     height: number;
   }) => void;
+  /** Hosts can observe completed local GIF/PNG exports. */
+  onRenderedImage?: (result: {
+    blob: Blob;
+    format: "gif" | "png";
+    width: number;
+    height: number;
+  }) => void;
   /** Host navigation rendered inside the shared editor toolbar. */
   topBarLeading?: React.ReactNode;
   /** Host persistence state rendered beside the document name. */
@@ -260,6 +267,7 @@ export function DrawCMSEditor({
   onDocumentChange,
   variant = "full",
   onRenderedVideo,
+  onRenderedImage,
   topBarLeading,
   topBarStatus,
   topBarActions,
@@ -1116,6 +1124,7 @@ export function DrawCMSEditor({
           onShowGuide={handleShowGuide}
           presentation={isPresentation}
           onRenderedVideo={onRenderedVideo}
+          onRenderedImage={onRenderedImage}
           leading={topBarLeading}
           status={topBarStatus}
           actions={topBarActions}

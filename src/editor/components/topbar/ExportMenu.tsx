@@ -59,6 +59,13 @@ export interface ExportMenuProps {
     width: number;
     height: number;
   }) => void;
+  /** Hosts can observe GIF/PNG exports after they have been generated locally. */
+  onRenderedImage?: (result: {
+    blob: Blob;
+    format: "gif" | "png";
+    width: number;
+    height: number;
+  }) => void;
   watermarkText?: string;
   /** Hosts can reserve the portable vector export for paid plans. */
   canExportSvg?: boolean;
@@ -88,6 +95,7 @@ export function ExportMenu({
   onExportArtifact,
   hostActions = [],
   onRenderedVideo,
+  onRenderedImage,
   watermarkText,
   canExportSvg = true,
   canExportMp4 = true,
@@ -192,6 +200,12 @@ export function ExportMenu({
         background: preferences.background,
         watermarkText,
       });
+      onRenderedImage?.({
+        blob: await (await fetch(dataUrl)).blob(),
+        format: "png",
+        width: exportDimensions.width,
+        height: exportDimensions.height,
+      });
       downloadDataUrl(dataUrl, `${baseName}.png`);
     });
 
@@ -226,6 +240,12 @@ export function ExportMenu({
         onProgress: setProgress,
         watermarkText,
       });
+      onRenderedImage?.({
+        blob,
+        format: "gif",
+        width: exportDimensions.width,
+        height: exportDimensions.height,
+      });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
@@ -252,6 +272,7 @@ export function ExportMenu({
     viewportPadding,
     baseName,
     watermarkText,
+    onRenderedImage,
   ]);
 
   /** Deterministic video export: frame capture steps through GSAP's global clock. */

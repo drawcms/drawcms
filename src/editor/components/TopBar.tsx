@@ -33,6 +33,13 @@ interface TopBarProps {
     width: number;
     height: number;
   }) => void;
+  /** Hosts process exported images (e.g. hosted embed uploads, DM-108). */
+  onRenderedImage?: (result: {
+    blob: Blob;
+    format: "gif" | "png";
+    width: number;
+    height: number;
+  }) => void;
   /** Navigation supplied by a host without adding another toolbar. */
   leading?: ReactNode;
   /** Persistence state supplied by a host, replacing local dirty state. */
@@ -86,6 +93,7 @@ export function TopBar({
   onShowGuide,
   presentation = false,
   onRenderedVideo,
+  onRenderedImage,
   leading,
   status,
   actions,
@@ -262,6 +270,7 @@ export function TopBar({
               onExportArtifact={onExportArtifact}
               hostActions={exportMenuActions}
               onRenderedVideo={onRenderedVideo}
+              onRenderedImage={onRenderedImage}
               watermarkText={exportWatermark}
               canExportSvg={canExportSvg}
               canExportMp4={canExportMp4}
