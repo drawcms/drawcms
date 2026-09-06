@@ -1,51 +1,40 @@
 ---
 import SiteTitle from "virtual:starlight/components/SiteTitle";
 import SocialIcons from "virtual:starlight/components/SocialIcons";
+import { getActiveDocsSection } from "../../plugins/header-navigation.mjs";
 
 interface NavLink {
   label: string;
   href: string;
-  match: string;
+  section?: string;
 }
 
-/**
- * Cross-section nav shown as tabs in the top bar. `match` is the URL prefix
- * that marks a tab active; `match: ""` matches the docs landing page.
- */
 const NAV_LINKS: NavLink[] = [
-  { label: "Guide", href: "/", match: "" },
-  { label: "Cloud", href: "https://drawcms.com", match: "/cloud" },
-  { label: "Self-Hosting", href: "/docs/self-hosting", match: "/docs/self-hosting" },
-  { label: "Public API", href: "/docs/plugin-api", match: "/docs/plugin-api" },
-  {
-    label: "Contributing",
-    href: "https://github.com/drawcms/drawcms/blob/main/CONTRIBUTING.md",
-    match: "/contributing",
-  },
+  { label: "Guide", href: "/docs", section: "guide" },
+  { label: "Cloud", href: "/docs/cloud", section: "cloud" },
+  { label: "Self-Hosting", href: "/docs/self-hosting", section: "self-hosting" },
+  { label: "Public API", href: "/docs/plugin-api", section: "public-api" },
+  { label: "Contributing", href: "/docs/contributing", section: "contributing" },
 ];
 
-const currentPathname = Astro.url.pathname.replace(/\/$/, "");
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-function isActive(link: NavLink): boolean {
-  if (link.match === "") return currentPathname === base || currentPathname === `${base}/`;
-  const target = `${base}${link.match}`.replace(/\/$/, "");
-  return currentPathname.startsWith(target);
-}
+const activeSection = getActiveDocsSection(Astro.url.pathname, import.meta.env.BASE_URL);
 ---
 
 <header class="dm-header">
   <nav class="dm-header-nav" aria-label="Sections">
     {
-      NAV_LINKS.map((link) => (
-        <a
-          href={link.href}
-          class:list={["dm-header-tab", { "dm-header-tab-active": isActive(link) }]}
-          aria-current={isActive(link) ? "true" : undefined}
-        >
-          {link.label}
-        </a>
-      ))
+      NAV_LINKS.map((link) => {
+        const isActive = link.section === activeSection;
+        return (
+          <a
+            href={link.href}
+            class:list={["dm-header-tab", { "dm-header-tab-active": isActive }]}
+            aria-current={isActive ? "page" : undefined}
+          >
+            {link.label}
+          </a>
+        );
+      })
     }
   </nav>
   <div class="dm-header-right">

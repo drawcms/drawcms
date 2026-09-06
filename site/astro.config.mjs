@@ -25,7 +25,7 @@ const SIDEBAR_GROUPS = [
   },
   {
     label: "Deploy",
-    items: ["self-hosting", "upgrading"],
+    items: ["self-hosting", "cloud", "upgrading"],
   },
   {
     label: "Extend",
@@ -41,6 +41,10 @@ const SIDEBAR_GROUPS = [
       "performance",
     ],
   },
+  {
+    label: "Project",
+    items: ["contributing"],
+  },
 ];
 
 /** Short sidebar labels for pages whose frontmatter titles are long. */
@@ -48,6 +52,7 @@ const SIDEBAR_LABELS = {
   "quick-start": "Quick start",
   "core-concepts": "Concepts",
   "self-hosting": "Self-hosting",
+  cloud: "DrawCMS Cloud",
   upgrading: "Upgrading",
   "plugin-api": "Plugin API",
   "design-system": "Design system",
@@ -58,6 +63,7 @@ const SIDEBAR_LABELS = {
   accessibility: "Accessibility",
   performance: "Performance",
   webmcp: "WebMCP",
+  contributing: "Contributing",
 };
 
 function buildSidebar() {

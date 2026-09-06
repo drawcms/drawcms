@@ -2,6 +2,7 @@
 import Search from "virtual:starlight/components/Search";
 import SiteTitle from "virtual:starlight/components/SiteTitle";
 import ThemeSelect from "virtual:starlight/components/ThemeSelect";
+import SidebarPersister from "@astrojs/starlight/components/SidebarPersister.astro";
 import DmIcon from "./DmIcon.astro";
 import type { DmIconName } from "./DmIcon.astro";
 
@@ -12,7 +13,6 @@ interface SidebarLink {
 }
 
 const GITHUB_URL = "https://github.com/drawcms/drawcms";
-const DISCORD_URL = "https://discord.gg/your-drawcms-invite";
 
 /**
  * Sidebar entries keyed by slug (single files) or group label (sublists).
@@ -25,11 +25,13 @@ const ITEM_ICONS: Record<string, DmIconName> = {
   Deploy: "cloud",
   Extend: "puzzle",
   Reference: "layers",
+  Project: "github",
   // Pages
   Overview: "book",
   "quick-start": "book",
   "core-concepts": "compass",
   "self-hosting": "server",
+  cloud: "cloud",
   upgrading: "wrench",
   "plugin-api": "code",
   "design-system": "pencil",
@@ -40,17 +42,15 @@ const ITEM_ICONS: Record<string, DmIconName> = {
   accessibility: "heart",
   performance: "zap",
   webmcp: "terminal",
+  Contributing: "pencil",
 };
 
 const PINNED_LINKS: SidebarLink[] = [
   { label: "GitHub", href: GITHUB_URL, icon: "github" },
-  { label: "Discord", href: DISCORD_URL, icon: "discord" },
-  { label: "YouTube", href: "https://youtube.com/@your-drawcms", icon: "youtube" },
 ];
 
 const FOOTER_LINKS: SidebarLink[] = [
-  { label: "Discord", href: DISCORD_URL, icon: "discord" },
-  { label: "Register to the cloud", href: "https://drawcms.com", icon: "arrowUpRight" },
+  { label: "Open DrawCMS Cloud", href: "https://drawcms.com", icon: "arrowUpRight" },
 ];
 
 interface Entry {
@@ -77,7 +77,7 @@ const isIndexPage = Astro.url.pathname === import.meta.env.BASE_URL.replace(/\/$
   Astro.url.pathname === `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
 ---
 
-<starlight-sidebar-state-persist>
+<SidebarPersister>
   <div class="dm-sidebar">
     <div class="dm-sidebar-head">
       <div class="dm-sidebar-brand">
@@ -181,7 +181,7 @@ const isIndexPage = Astro.url.pathname === import.meta.env.BASE_URL.replace(/\/$
       }
     </div>
   </div>
-</starlight-sidebar-state-persist>
+</SidebarPersister>
 
 <style>
   .dm-sidebar {

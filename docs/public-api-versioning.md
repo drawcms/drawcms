@@ -33,8 +33,7 @@ Unknown contribution lookups fail with `CONTRIBUTION_NOT_FOUND`.
 - **Breaking changes** (renamed/removed exports, changed contribution shapes,
   stricter document fields, new required plugin fields): require a design
   issue, increment `EDITOR_API_VERSION`, give plugin authors a migration note
-  in the release description, and keep the previous major committed for at
-  least one minor release where technically possible.
+  in the release description.
 - Plugins must consume only the editor's public exports (`src/editor/index.ts`,
   imported as `@/editor` inside this repository), never internal paths.
 
@@ -55,9 +54,9 @@ carries only `story`. This did not change the plugin contribution shape
 (`EditorPlugin` fields are unaffected), but it is a breaking change to the
 document's `motion` section and to WebMCP's motion-preview tool, so
 `EDITOR_API_VERSION` moved from `1` to `2` alongside `DOCUMENT_SCHEMA_VERSION`
-moving from `4` to `5`. A plugin built against version `1` still registers
-correctly — nothing about the plugin contribution slots changed — but any
-plugin or host code reading `document.motion.scenes`/`tracks` directly (rather
-than through the public API) needs to drop that read, since the field no
-longer exists on `DrawCMSDocument`. `migrateDocument` handles this
-automatically for documents opened through the normal load path.
+moving from `4` to `5`. A plugin declaring API version `1` is rejected by a
+version `2` host and must update its declared version after removing any reads
+of `document.motion.scenes` or `document.motion.tracks`. Those fields no longer
+exist on `DrawCMSDocument`. `migrateDocument` handles stored documents
+automatically when they enter through the normal load path; it does not update
+plugin code.

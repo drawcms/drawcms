@@ -17,7 +17,8 @@ backend MCP server, API key, or agent SDK is added to the application.
 
 ## Enable it
 
-The self-hosted OSS editor enables WebMCP on `/editor`. Hosts embedding the
+The self-hosted OSS editor enables WebMCP on `/` (`/editor` redirects there).
+Hosts embedding the
 editor source opt in per authoring editor:
 
 ```tsx
@@ -32,10 +33,12 @@ The option is ignored for `variant="presentation"`, so shared and embedded
 viewers never expose authoring tools.
 
 For local development, use a Chromium build with WebMCP support, enable
-`chrome://flags/#enable-webmcp-testing`, and relaunch the browser. Live sites
-currently need the Chrome 149+ WebMCP origin trial. WebMCP requires a secure,
-origin-isolated document; the `tools` Permissions Policy defaults to `self`.
-Do not opt out of origin isolation with `Origin-Agent-Cluster: ?0`.
+`chrome://flags/#enable-webmcp-testing`, and relaunch the browser. Chrome 149
+introduced a time-limited WebMCP origin trial for live sites. Check the
+[Chrome origin-trial page](https://developer.chrome.com/blog/ai-webmcp-origin-trial)
+before relying on it in production. WebMCP requires a secure, origin-isolated
+document; the `tools` Permissions Policy defaults to `self`. Do not opt out of
+origin isolation with `Origin-Agent-Cluster: ?0`.
 
 ## Exposed tools
 

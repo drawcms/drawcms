@@ -1,5 +1,5 @@
 ---
-title: "Performance budgets and benchmarks (DM-033)"
+title: "Performance budgets and benchmarks"
 ---
 
 DrawCMS stays responsive for real architecture work: documents of 100, 500,
@@ -18,7 +18,7 @@ generous on purpose: they catch order-of-magnitude regressions, not jitter.
 | `parseDocument` (load)                               | 1500 ms |   ~3.4 ms |
 | `migrateDocument` (legacy load)                      | 2000 ms |   ~3.4 ms |
 | `reconcileMotionTargets` × 100 over a 125-step story | 1000 ms |   ~0.4 ms |
-| `planFrames` at 30 fps for the scene duration        |  500 ms |     <1 ms |
+| `planFrames` for 3 seconds at 30 fps                 |  500 ms |     <1 ms |
 
 \* Baseline recorded 2026-09-05 on Apple Silicon (arm64), Node 24, vitest 4.
 
@@ -32,18 +32,17 @@ npm run bench
 
 Fixtures live in `src/editor/perf/fixtures.ts`
 (`buildStressDocument(nodeCount)`) — deterministic via a seeded generator;
-sizes 100 / 500 / 1000 nodes with 1.5× edges and dense motion scenes
-(250+ tracks, 2 steps each plus connector-flow tracks).
+sizes 100 / 500 / 1000 nodes use 1.5× as many edges, motion on a subset of
+items, and one story step for every eight nodes.
 
 ## What this does not measure
 
-Pan/zoom/drag/selection rendering is React Flow + DOM work and is verified
-manually against the same fixtures at each release: open a stress document in
-the editor (`File → Open` a generated file or the guided template) and pan,
-zoom, drag a node, marquee-select, preview one preset, and toggle Animate. Any
-interaction that does not feel immediate on the baseline hardware blocks the
-release.
+These tests do not measure React Flow rendering, pan, zoom, drag, selection,
+or export encoding. Those paths need browser profiling with a representative
+large `.drawcms` file; the model-level timings above cannot be used as UI
+latency claims.
 
 GIF/MP4 export capture cost scales with pixel work, so the export menu warns
-when the diagram exceeds 500 nodes and suggests the managed cloud render path
+when the diagram exceeds 500 nodes. Cloud MP4 export adds plan checks and
+managed storage, but it still encodes frames in the browser
 (`src/editor/components/topbar/ExportMenu.tsx`).

@@ -63,10 +63,10 @@ Importers translate supported parts of draw.io and Excalidraw diagrams into Draw
 a report for anything they cannot represent. The original source file is not modified.
 
 The self-hosted editor exports PNG stills and animated GIF locally, no account
-required. SVG and MP4 recordings are locked there by default — the export menu
-shows them with an upgrade path via a managed DrawCMS Cloud instance
-(`NEXT_PUBLIC_CLOUD_URL`). Sharing (view-only links and embeds) is also
-managed-instance-only; the self-hosted editor has no built-in sharing.
+required. It shows SVG, MP4, and Share as Cloud features. Setting
+`NEXT_PUBLIC_CLOUD_URL` configures those upgrade links; it does not enable the
+features in the open-source host. See [DrawCMS Cloud](cloud.md) for the hosted
+storage, sharing, and export behavior.
 Check [browser support](browser-support.md) before choosing a delivery format.
 
 ## A useful first workflow

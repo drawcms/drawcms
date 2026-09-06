@@ -2,9 +2,10 @@
 title: "Importer support and limitations"
 ---
 
-Importers are plugins: they convert foreign formats into DrawCMS documents
-and never fail hard — unsupported content lands in a **non-blocking import
-report** that also tells you exactly what was skipped.
+Importers are plugins that convert foreign formats into DrawCMS documents.
+Malformed files and unsupported file versions stop with a readable error.
+Unsupported elements inside a valid file are skipped or approximated and
+listed in a non-blocking import report.
 
 Both importers are covered by fixtures under
 `src/editor/io/{drawio,excalidraw}/fixtures` (see
@@ -21,11 +22,13 @@ Both importers are covered by fixtures under
 - Geometry (x/y/width/height)
 - Nested parents → DrawCMS container reparenting (groups)
 - Common connectors (edges) between vertices, plain edge labels
+- Images with an HTTP, HTTPS, or data URL
 
 **Not supported (reported, skipped)**
 
-- Waypoints/routing points and orthogonal edge styles (edges become straight)
-- Image stencils and embedded diagrams
+- Waypoints/routing points and orthogonal edge styles (connectors are rerouted)
+- Image stencils without an accessible URL (shown as rectangles)
+- Embedded diagrams
 - Layers and multi-page diagrams (first page only)
 - Text formatting runs (bold/color per span) — plain text only
 - Constraint-based relative positioning
@@ -36,17 +39,19 @@ Both importers are covered by fixtures under
 
 - Rectangles, ellipses, diamonds → shapes
 - Text elements (bound text keeps its container relationship)
-- Arrows/lines → connectors with their bound start/end elements
+- Arrows → connectors when both endpoints resolve to shapes
 - Images → image nodes (embedded data URLs)
-- Groups
-- Rough sketch color palettes → nearest editor styling
+- Frames → DrawCMS groups with child elements
+- Fill color, stroke color, opacity, stroke width, and text size
 
 **Not supported (reported, skipped)**
 
-- Freehand strokes (converted to bounding-box notes when possible, else skipped)
-- Frames
+- Freehand strokes and standalone lines
+- Excalidraw element groups (flattened; frame nesting is preserved)
+- Arrows without two resolvable shape endpoints
+- Images without embedded file data
 - Library item metadata
-- Per-stroke roughness and sloppiness (visual only)
+- Roughness, sloppiness, and other hand-drawn rendering details
 
 ## After import
 

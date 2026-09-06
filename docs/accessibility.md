@@ -19,7 +19,7 @@ preset playback remains available when the user explicitly asks for it.
 
 ## Manual WCAG-oriented release checklist
 
-Run before every public release (record in the sprint/release report):
+Run before every public release and record the result with the release:
 
 **Keyboard**
 
@@ -52,6 +52,6 @@ Run before every public release (record in the sprint/release report):
 
 ## Known gaps (tracked)
 
-- The free-drag canvas itself is pointer-centric (React Flow); keyboard node
-  movement/arrows are provided, full node editing parity is post-launch work.
+- The free-drag canvas itself is pointer-centric (React Flow). Arrow keys move
+  focused nodes, but some direct manipulation still requires a pointer.
 - Shared/presentation views inherit this support through the same components.

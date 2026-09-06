@@ -17,19 +17,19 @@ npm run build
 npm start
 ```
 
-The app listens on port 3002 by default (`npx next start -p 4000` to change
-it). No environment variables are required.
+The app listens on port 3002 by default (`npx next start -p 4000` changes the
+port). No environment variables are required.
 
-| Variable                | Purpose                                                                                                   | Default                                         |
-| ----------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `NEXT_PUBLIC_CLOUD_URL` | Points the editor's locked SVG/MP4 export and Share surfaces at your managed instance and shows its CTAs. | unset (SVG/MP4 exports and sharing stay locked) |
+| Variable                | Purpose                                                                                                     | Default |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- | ------- |
+| `NEXT_PUBLIC_CLOUD_URL` | Destination used by the SVG/MP4 and Share upgrade links. It does not enable those features in the OSS host. | unset   |
 
 ## Deploy targets
 
 The repository ships ready-made adapters; the production build also sets
 security headers (CSP, HSTS) in `next.config.ts`:
 
-- **Vercel / Netlify** — zero-config Next.js deployments
+- **Vercel / Netlify** — Next.js deployments
   (`netlify.toml` is included; the README has deploy buttons).
 - **Render** — `render.yaml` blueprint (free plan works; the app is
   client-side and local-first).
@@ -40,9 +40,8 @@ security headers (CSP, HSTS) in `next.config.ts`:
 
 ## What ships where
 
-- `/` — landing page (sample animation, links into the editor).
-- `/editor` — the editor itself. Self-hosted brands often reverse-proxy
-  `example.com/editor` and keep marketing elsewhere; nothing is route-coupled.
+- `/` — the editor.
+- `/editor` — redirects to `/` so older links continue to work.
 - `public/cloud-icons/` and `public/gif.worker.js` are committed copies of the
   editor's static assets — they ship with the repository and need no extra
   build step.
@@ -54,8 +53,12 @@ The documentation and blog sites in this repository (`site/` and
 
 After deploying:
 
-1. `/` loads, sample animation plays (respecting `prefers-reduced-motion`).
-2. `/editor` opens with onboarding; the guided sample plays its sequence.
+1. `/` opens the editor and shows onboarding on a new browser profile.
+2. The guided sample loads and its presentation steps play.
 3. `File → Save` downloads a `.drawcms` file; reopening it restores state.
 4. A refresh keeps the document (browser autosave chip shows "Saved locally").
-5. Export → GIF produces a deterministic recording of the sample.
+5. Export → GIF produces a recording of the sample.
+
+The default Content Security Policy sets `frame-ancestors 'none'` and the app
+also sends `X-Frame-Options: DENY`. If you choose to embed your deployment in
+an iframe, narrow both headers to the exact parent origins you control.
