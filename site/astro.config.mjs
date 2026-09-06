@@ -20,17 +20,21 @@ const SIDEBAR_GROUPS = [
     items: ["quick-start", "core-concepts"],
   },
   {
+    label: "Creating diagrams",
+    items: ["design-system", "document-format"],
+  },
+  {
     label: "Deploy",
     items: ["self-hosting", "upgrading"],
   },
   {
     label: "Extend",
-    items: ["plugin-api", "design-system", "public-api-versioning"],
+    items: ["plugin-api", "webmcp"],
   },
   {
     label: "Reference",
     items: [
-      "document-format",
+      "public-api-versioning",
       "importer-limitations",
       "browser-support",
       "accessibility",
@@ -38,6 +42,23 @@ const SIDEBAR_GROUPS = [
     ],
   },
 ];
+
+/** Short sidebar labels for pages whose frontmatter titles are long. */
+const SIDEBAR_LABELS = {
+  "quick-start": "Quick start",
+  "core-concepts": "Concepts",
+  "self-hosting": "Self-hosting",
+  upgrading: "Upgrading",
+  "plugin-api": "Plugin API",
+  "design-system": "Design system",
+  "public-api-versioning": "API versioning",
+  "document-format": "Document format",
+  "importer-limitations": "Importers",
+  "browser-support": "Browsers",
+  accessibility: "Accessibility",
+  performance: "Performance",
+  webmcp: "WebMCP",
+};
 
 function buildSidebar() {
   if (!existsSync(docsDir)) {
@@ -60,7 +81,11 @@ function buildSidebar() {
   const remaining = new Set(topLevel);
 
   for (const group of SIDEBAR_GROUPS) {
-    const items = group.items.filter((slug) => remaining.delete(slug));
+    const items = group.items
+      .filter((slug) => remaining.delete(slug))
+      .map((slug) =>
+        SIDEBAR_LABELS[slug] ? { label: SIDEBAR_LABELS[slug], link: `/${slug}` } : slug,
+      );
     if (items.length === 0) continue;
     if (sidebar.length === 0) items.unshift({ label: "Overview", link: "/" });
     sidebar.push({ label: group.label, items });
@@ -82,6 +107,19 @@ export default defineConfig({
   // Emit the /docs prefix into the asset tree so the drawcms-docs Worker can
   // serve drawcms.com/docs* straight from its assets (URLs and file paths align).
   outDir: "dist/docs",
+  vite: {
+    // Docs content lives in a symlinked folder outside site/, so mdx imports
+    // of Starlight components fail to resolve without an explicit alias.
+    resolve: {
+      alias: [
+        {
+          find: /^@astrojs\/starlight\/components$/,
+          replacement: new URL("./node_modules/@astrojs/starlight/components.ts", import.meta.url)
+            .pathname,
+        },
+      ],
+    },
+  },
   markdown: {
     remarkPlugins: [
       [remarkAppOrigin, { appOrigin: APP_ORIGIN }],
@@ -101,6 +139,11 @@ export default defineConfig({
       components: {
         Header: "./src/components/Header.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
+        ThemeSelect: "./src/components/ThemeSelect.astro",
+        Sidebar: "./src/components/Sidebar.astro",
+        Pagination: "./src/components/Pagination.astro",
+        Footer: "./src/components/Footer.astro",
+        PageTitle: "./src/components/PageTitle.astro",
       },
       social: [{ icon: "github", label: "GitHub", href: GITHUB_URL }],
       sidebar: buildSidebar(),

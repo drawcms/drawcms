@@ -1,0 +1,99 @@
+---
+import DmIcon from "./DmIcon.astro";
+
+const { dir, pagination } = Astro.locals.starlightRoute;
+const { prev, next } = pagination;
+const isRtl = dir === "rtl";
+---
+
+{
+  (prev || next) && (
+    <div class="dm-pagination" dir={dir}>
+      {prev && (
+        <a href={prev.href} rel="prev" class="dm-pagination-card">
+          <span class="dm-pagination-text">
+            <span class="dm-pagination-label">{Astro.locals.t("page.previousLink")}</span>
+            <span class="dm-pagination-title">{prev.label}</span>
+          </span>
+          <DmIcon name={isRtl ? "chevronRight" : "chevronRight"} size="1.125rem" class="dm-pagination-arrow" />
+        </a>
+      )}
+      {next && (
+        <a href={next.href} rel="next" class="dm-pagination-card">
+          <span class="dm-pagination-text">
+            <span class="dm-pagination-label">{Astro.locals.t("page.nextLink")}</span>
+            <span class="dm-pagination-sub">
+              {next.type === "link" ? "" : ""}
+            </span>
+            <span class="dm-pagination-title">{next.label}</span>
+          </span>
+          <DmIcon name={isRtl ? "chevronRight" : "chevronRight"} size="1.125rem" class="dm-pagination-arrow" />
+        </a>
+      )}
+    </div>
+  )
+}
+
+<style>
+  .dm-pagination {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 2.5rem;
+  }
+
+  .dm-pagination-card {
+    align-items: center;
+    background: var(--sl-color-bg);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.75rem;
+    color: var(--sl-color-gray-3);
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    text-decoration: none;
+    transition:
+      border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-pagination-card:hover {
+    border-color: var(--sl-color-gray-4);
+  }
+
+  .dm-pagination-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+
+  .dm-pagination-label {
+    color: var(--sl-color-white);
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .dm-pagination-sub {
+    color: var(--sl-color-gray-3);
+    font-size: 0.875rem;
+  }
+
+  .dm-pagination-title {
+    color: var(--sl-color-gray-3);
+    font-size: 0.875rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dm-pagination-arrow {
+    color: var(--sl-color-gray-3);
+    flex-shrink: 0;
+  }
+
+  .dm-pagination-card:hover .dm-pagination-arrow {
+    color: var(--sl-color-white);
+  }
+</style>

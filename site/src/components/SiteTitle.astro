@@ -15,7 +15,6 @@ const { siteTitleHref } = Astro.locals.starlightRoute;
   <span class="dm-wordmark" translate="no">
     <span>Draw</span><strong>CMS</strong>
   </span>
-  <span class="dm-section-name">Docs</span>
 </a>
 
 <style>
@@ -24,53 +23,35 @@ const { siteTitleHref } = Astro.locals.starlightRoute;
     border-radius: 0.25rem;
     color: var(--sl-color-white);
     display: inline-flex;
-    gap: 0.625rem;
+    gap: 0.5rem;
     min-height: 2.5rem;
     min-width: 0;
+    padding-inline-end: 0.25rem;
     text-decoration: none;
   }
 
   .dm-brand-mark {
     align-items: center;
-    background: var(--sl-color-accent-low);
-    border: 1px solid color-mix(in srgb, var(--sl-color-text-accent) 22%, transparent);
-    border-radius: 0.25rem;
     color: var(--sl-color-text-accent);
     display: inline-flex;
-    height: 2rem;
     justify-content: center;
-    width: 2rem;
   }
 
   .dm-brand-mark svg {
     fill: currentColor;
-    height: 1.5rem;
-    width: 1.5rem;
+    height: 1.375rem;
+    width: 1.375rem;
   }
 
   .dm-wordmark {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: -0.025em;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
     white-space: nowrap;
   }
 
   .dm-wordmark strong {
     color: var(--sl-color-text-accent);
-    font-weight: 600;
-  }
-
-  .dm-section-name {
-    border-inline-start: 1px solid var(--sl-color-hairline-light);
-    color: var(--sl-color-gray-3);
-    font-size: var(--sl-text-sm);
-    padding-inline-start: 0.625rem;
-    white-space: nowrap;
-  }
-
-  @media (max-width: 24rem) {
-    .dm-section-name {
-      display: none;
-    }
+    font-weight: 700;
   }
 </style>

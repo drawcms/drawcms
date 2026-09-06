@@ -1,0 +1,148 @@
+---
+import DmIcon from "./DmIcon.astro";
+import Pagination from "virtual:starlight/components/Pagination";
+
+const GITHUB_URL = "https://github.com/drawcms/drawcms";
+const DISCORD_URL = "https://discord.gg/your-drawcms-invite";
+---
+
+<div class="dm-footer-flow">
+  <div class="dm-feedback">
+  <span class="dm-feedback-label">Was this page helpful?</span>
+  <div class="dm-feedback-actions">
+    <button type="button" data-feedback="yes">
+      <DmIcon name="thumbsUp" size="1rem" />
+      <span>Yes</span>
+    </button>
+    <button type="button" data-feedback="no">
+      <DmIcon name="thumbsDown" size="1rem" />
+      <span>No</span>
+    </button>
+  </div>
+  </div>
+
+  <Pagination />
+</div>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>("[data-feedback]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const wrap = btn.closest(".dm-feedback");
+      if (!wrap || wrap.hasAttribute("data-voted")) return;
+      wrap.setAttribute("data-voted", btn.dataset.feedback || "");
+      const label = wrap.querySelector(".dm-feedback-label");
+      if (label) label.textContent = "Thanks for the feedback!";
+    });
+  });
+</script>
+
+<style>
+  .dm-footer-flow {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dm-feedback {
+    align-items: center;
+    border-top: 1px solid var(--sl-color-hairline);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+  }
+
+  .dm-feedback-label {
+    color: var(--sl-color-gray-2);
+    font-size: 0.875rem;
+  }
+
+  .dm-feedback-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .dm-feedback-actions button {
+    align-items: center;
+    background: transparent;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.75rem;
+    color: var(--sl-color-gray-2);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 0.875rem;
+    gap: 0.5rem;
+    height: 2.125rem;
+    padding-inline: 0.875rem;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-feedback-actions button:hover {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-white);
+  }
+
+  .dm-feedback[data-voted="yes"] [data-feedback="yes"],
+  .dm-feedback[data-voted="no"] [data-feedback="no"] {
+    background: var(--sl-color-accent-low);
+    border-color: color-mix(in srgb, var(--sl-color-text-accent) 40%, transparent);
+    color: var(--sl-color-text-accent);
+  }
+</style>
+
+<footer class="dm-footer">
+  <div class="dm-footer-social">
+    <a href={GITHUB_URL} aria-label="GitHub">
+      <DmIcon name="github" size="1.25rem" />
+    </a>
+    <a href={DISCORD_URL} aria-label="Discord">
+      <DmIcon name="discord" size="1.25rem" />
+    </a>
+  </div>
+  <p class="dm-footer-note">
+    Built with
+    <a href="https://starlight.astro.build" rel="noopener">Starlight</a>
+  </p>
+</footer>
+
+<style>
+  .dm-footer {
+    align-items: center;
+    border-top: 1px solid var(--sl-color-hairline);
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+  }
+
+  .dm-footer-social {
+    display: flex;
+    gap: 0.875rem;
+  }
+
+  .dm-footer-social a {
+    color: var(--sl-color-gray-3);
+    transition: color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-footer-social a:hover {
+    color: var(--sl-color-white);
+  }
+
+  .dm-footer-note {
+    color: var(--sl-color-gray-3);
+    font-size: 0.875rem;
+    margin: 0;
+  }
+
+  .dm-footer-note a {
+    color: var(--sl-color-gray-2);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+</style>

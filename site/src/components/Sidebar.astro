@@ -1,0 +1,384 @@
+---
+import Search from "virtual:starlight/components/Search";
+import SiteTitle from "virtual:starlight/components/SiteTitle";
+import ThemeSelect from "virtual:starlight/components/ThemeSelect";
+import DmIcon from "./DmIcon.astro";
+import type { DmIconName } from "./DmIcon.astro";
+
+interface SidebarLink {
+  label: string;
+  href: string;
+  icon: DmIconName;
+}
+
+const GITHUB_URL = "https://github.com/drawcms/drawcms";
+const DISCORD_URL = "https://discord.gg/your-drawcms-invite";
+
+/**
+ * Sidebar entries keyed by slug (single files) or group label (sublists).
+ * Icons fall back to `file` for anything unlisted.
+ */
+const ITEM_ICONS: Record<string, DmIconName> = {
+  // Group labels
+  "Get started": "rocket",
+  "Creating diagrams": "pencil",
+  Deploy: "cloud",
+  Extend: "puzzle",
+  Reference: "layers",
+  // Pages
+  Overview: "book",
+  "quick-start": "book",
+  "core-concepts": "compass",
+  "self-hosting": "server",
+  upgrading: "wrench",
+  "plugin-api": "code",
+  "design-system": "pencil",
+  "public-api-versioning": "shield",
+  "document-format": "file",
+  "importer-limitations": "layers",
+  "browser-support": "monitor",
+  accessibility: "heart",
+  performance: "zap",
+  webmcp: "terminal",
+};
+
+const PINNED_LINKS: SidebarLink[] = [
+  { label: "GitHub", href: GITHUB_URL, icon: "github" },
+  { label: "Discord", href: DISCORD_URL, icon: "discord" },
+  { label: "YouTube", href: "https://youtube.com/@your-drawcms", icon: "youtube" },
+];
+
+const FOOTER_LINKS: SidebarLink[] = [
+  { label: "Discord", href: DISCORD_URL, icon: "discord" },
+  { label: "Register to the cloud", href: "https://drawcms.com", icon: "arrowUpRight" },
+];
+
+interface Entry {
+  type?: string;
+  label: string;
+  href?: string;
+  isCurrent?: boolean;
+  entries?: Entry[];
+}
+
+const { sidebar } = Astro.locals.starlightRoute;
+
+function iconFor(entry: Entry): DmIconName {
+  return ITEM_ICONS[entry.label] ?? "file";
+}
+
+function flatten(entries: Entry[] = []): Entry[] {
+  return entries.flatMap((entry) =>
+    entry.type === "link" ? [entry] : flatten(entry.entries),
+  );
+}
+
+const isIndexPage = Astro.url.pathname === import.meta.env.BASE_URL.replace(/\/$/, "") ||
+  Astro.url.pathname === `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
+---
+
+<starlight-sidebar-state-persist>
+  <div class="dm-sidebar">
+    <div class="dm-sidebar-head">
+      <div class="dm-sidebar-brand">
+        <SiteTitle />
+      </div>
+      <span class="dm-sidebar-theme">
+        <ThemeSelect />
+      </span>
+    </div>
+
+    <div class="dm-sidebar-search">
+      <Search />
+    </div>
+
+    <div class="dm-sidebar-social" role="list">
+      {
+        PINNED_LINKS.map((link) => (
+          <a role="listitem" href={link.href} rel="me">
+            <DmIcon name={link.icon} size="1.125rem" />
+            <span>{link.label}</span>
+          </a>
+        ))
+      }
+    </div>
+
+    <nav class="dm-sidebar-nav" aria-label="Documentation navigation">
+      {
+        sidebar.map((group) => {
+          const entries = flatten([group as Entry]);
+          const groupLabel = group.label;
+          return (
+            <div class="dm-sidebar-group">
+              <p class="dm-sidebar-heading">{groupLabel}</p>
+              <ul>
+                {group.type === "link" || !("entries" in group) ? (
+                  <li>
+                    <a
+                      href={(group as Entry).href ?? "#"}
+                      aria-current={(group as Entry).isCurrent ? "page" : undefined}
+                      class:list={{ "dm-active": (group as Entry).isCurrent }}
+                    >
+                      <DmIcon name={iconFor(group as Entry)} size="1.0625rem" />
+                      <span>{groupLabel}</span>
+                    </a>
+                  </li>
+                ) : (
+                  (group as any).entries.map((entry: Entry, index: number) => (
+                    <li>
+                      {entry.type === "link" ? (
+                        <a
+                          href={entry.href ?? "#"}
+                          aria-current={entry.isCurrent ? "page" : undefined}
+                          class:list={{ "dm-active": entry.isCurrent }}
+                        >
+                          <DmIcon name={iconFor(entry)} size="1.0625rem" />
+                          <span>{entry.label}</span>
+                        </a>
+                      ) : (
+                        <details open={index === 0 && isIndexPage}>
+                          <summary>
+                            <DmIcon name={iconFor(entry)} size="1.0625rem" />
+                            <span>{entry.label}</span>
+                            <svg class="dm-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <path d="m9 18 6-6-6-6" />
+                            </svg>
+                          </summary>
+                          <ul class="dm-sublist">
+                            {flatten([entry]).map((child) => (
+                              <li>
+                                <a
+                                  href={child.href ?? "#"}
+                                  aria-current={child.isCurrent ? "page" : undefined}
+                                  class:list={{ "dm-active": child.isCurrent }}
+                                >
+                                  <span>{child.label}</span>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          );
+        })
+      }
+    </nav>
+
+    <div class="dm-sidebar-footer" role="list">
+      {
+        FOOTER_LINKS.map((link) => (
+          <a role="listitem" href={link.href}>
+            <DmIcon name={link.icon} size="1.125rem" />
+            <span>{link.label}</span>
+            <DmIcon name="arrowUpRight" size="0.875rem" class="dm-external-icon" />
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</starlight-sidebar-state-persist>
+
+<style>
+  .dm-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    height: 100%;
+    padding: 1rem 1.5rem 1rem;
+  }
+
+  .dm-sidebar-head {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    min-height: 2.5rem;
+  }
+
+  .dm-sidebar-theme {
+    display: inline-flex;
+  }
+
+  .dm-sidebar-search {
+    margin-block: 0.25rem 0.75rem;
+  }
+
+  .dm-sidebar-social {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+  }
+
+  .dm-sidebar-social a,
+  .dm-sidebar-footer a {
+    align-items: center;
+    border-radius: 0.375rem;
+    color: var(--sl-color-gray-2);
+    display: flex;
+    font-size: 0.9375rem;
+    gap: 0.75rem;
+    min-height: 2.375rem;
+    padding-inline: 0.375rem;
+    text-decoration: none;
+    transition:
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-sidebar-social a:hover,
+  .dm-sidebar-footer a:hover {
+    color: var(--sl-color-white);
+  }
+
+  .dm-sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .dm-sidebar-heading {
+    color: var(--sl-color-gray-1);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 0.375rem;
+    padding-inline: 0.375rem;
+  }
+
+  .dm-sidebar-group ul,
+  .dm-sublist {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .dm-sidebar-group li + li {
+    margin-top: 0.125rem;
+  }
+
+  .dm-sidebar-group a,
+  .dm-sidebar-group summary {
+    align-items: center;
+    border-radius: 0.375rem;
+    color: var(--sl-color-gray-2);
+    display: flex;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    gap: 0.75rem;
+    min-height: 2.375rem;
+    padding-inline: 0.375rem;
+    text-decoration: none;
+    transition:
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-sidebar-group a:hover,
+  .dm-sidebar-group summary:hover {
+    color: var(--sl-color-white);
+  }
+
+  .dm-sidebar-group :global(svg) {
+    color: var(--sl-color-gray-3);
+    transition: color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-sidebar-group a:hover :global(svg),
+  .dm-sidebar-group summary:hover :global(svg) {
+    color: var(--sl-color-gray-2);
+  }
+
+  .dm-sidebar-group a.dm-active,
+  .dm-sidebar-group a.dm-active:hover {
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-text-accent);
+    font-weight: 500;
+  }
+
+  .dm-sidebar-group a.dm-active::before {
+    background: var(--sl-color-text-accent);
+    border-radius: 1px;
+    bottom: 0.375rem;
+    content: "";
+    left: -0.5625rem;
+    position: absolute;
+    top: 0.375rem;
+    width: 2px;
+  }
+
+  .dm-sidebar-group li {
+    position: relative;
+  }
+
+  .dm-sidebar-heading {
+    color: var(--sl-color-gray-3);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0 0 0.375rem;
+    padding-inline: 0.375rem;
+  }
+
+  .dm-sidebar-group {
+    margin-top: 1.25rem;
+  }
+
+  .dm-sidebar-group:first-of-type {
+    margin-top: 1.75rem;
+  }
+
+  .dm-sidebar-group summary {
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .dm-sidebar-group summary::-webkit-details-marker,
+  .dm-sidebar-group summary::marker {
+    display: none;
+  }
+
+  .dm-caret {
+    color: var(--sl-color-gray-3);
+    margin-inline-start: auto;
+    transition: transform 150ms ease-in-out;
+  }
+
+  details[open] > summary .dm-caret {
+    transform: rotateZ(90deg);
+  }
+
+  .dm-sublist {
+    margin: 0 0 0.25rem;
+  }
+
+  .dm-sublist a {
+    font-size: 0.875rem;
+    min-height: 2.125rem;
+    padding-inline-start: 2.125rem;
+  }
+
+  .dm-sidebar-footer {
+    border-top: 1px solid var(--sl-color-hairline);
+    display: flex;
+    flex-direction: column;
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+
+  .dm-external-icon {
+    color: var(--sl-color-gray-3);
+    margin-left: auto;
+  }
+
+  @media (max-width: 49.99rem) {
+    .dm-sidebar {
+      padding: 1.25rem 1.5rem 1.5rem;
+    }
+  }
+</style>

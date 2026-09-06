@@ -1,0 +1,61 @@
+---
+title: "Introduction"
+description: "Turn the diagrams you already have into clear, animated explanations."
+template: doc
+eyebrow: "Get started"
+eyebrowLink: /docs/quick-start
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+DrawCMS manages the whole arc of a technical explanation in one place. Import a diagram, direct
+meaningful change with the motion composer, and publish a story your audience can follow — or hand
+the editor to your own app through its embedded contract.
+
+## Pick your path
+
+The docs are split three ways. Start with the one that describes you.
+
+<CardGrid>
+  <Card title="Using DrawCMS" icon="open-book">
+    How the product works: the canvas, the composer, stories, and document format. Applies to
+    everyone.
+  </Card>
+  <Card title="Self-hosting" icon="cloud-download">
+    Install it yourself, configure providers, and run the web app in production.
+  </Card>
+  <Card title="Embedding" icon="server">
+    Mount the editor inside your own product and theme it with stable CSS tokens.
+  </Card>
+</CardGrid>
+
+## Build on DrawCMS
+
+<CardGrid>
+  <Card title="Plugin & host API" icon="code-branch">
+    Extend the editor through its versioned contract and listen to document events.
+  </Card>
+  <Card title="WebMCP agents" icon="forward-slash">
+    Let browser agents build animated diagrams through the WebMCP endpoint.
+  </Card>
+  <Card title="Document format" icon="document">
+    Understand the portable `.drawcms` schema and how it versions.
+  </Card>
+</CardGrid>
+
+## Where things live
+
+- [Quick start](/docs/quick-start) — five minutes to an animated diagram
+- [Core concepts](/docs/core-concepts) — canvas items, motion, stories, and documents
+- [Design system](/docs/design-system) — theme a host with stable CSS tokens
+- [Importers](/docs/importer-limitations) — plan around draw.io and Excalidraw fidelity
+- [Upgrading](/docs/upgrading) — move between releases without losing documents
+- [Blog](https://drawcms.com/blog) — release notes, tutorials, and project news
+
+## About
+
+DrawCMS is open-source software licensed under
+[GNU AGPL v3.0 only](https://github.com/drawcms/drawcms/blob/main/LICENSE). Read
+[ADR 001](https://github.com/drawcms/drawcms/blob/main/adr/001-licensing-and-repository-boundary.md)
+for the OSS and Cloud boundary, or visit the
+[source repository](https://github.com/drawcms/drawcms) to contribute.

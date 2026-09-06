@@ -1,5 +1,141 @@
 ---
-import DefaultHeader from "@astrojs/starlight/components/Header.astro";
+import SiteTitle from "virtual:starlight/components/SiteTitle";
+import SocialIcons from "virtual:starlight/components/SocialIcons";
+
+interface NavLink {
+  label: string;
+  href: string;
+  match: string;
+}
+
+/**
+ * Cross-section nav shown as tabs in the top bar. `match` is the URL prefix
+ * that marks a tab active; `match: ""` matches the docs landing page.
+ */
+const NAV_LINKS: NavLink[] = [
+  { label: "Guide", href: "/", match: "" },
+  { label: "Cloud", href: "https://drawcms.com", match: "/cloud" },
+  { label: "Self-Hosting", href: "/docs/self-hosting", match: "/docs/self-hosting" },
+  { label: "Public API", href: "/docs/plugin-api", match: "/docs/plugin-api" },
+  {
+    label: "Contributing",
+    href: "https://github.com/drawcms/drawcms/blob/main/CONTRIBUTING.md",
+    match: "/contributing",
+  },
+];
+
+const currentPathname = Astro.url.pathname.replace(/\/$/, "");
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+function isActive(link: NavLink): boolean {
+  if (link.match === "") return currentPathname === base || currentPathname === `${base}/`;
+  const target = `${base}${link.match}`.replace(/\/$/, "");
+  return currentPathname.startsWith(target);
+}
 ---
 
-<DefaultHeader />
+<header class="dm-header">
+  <nav class="dm-header-nav" aria-label="Sections">
+    {
+      NAV_LINKS.map((link) => (
+        <a
+          href={link.href}
+          class:list={["dm-header-tab", { "dm-header-tab-active": isActive(link) }]}
+          aria-current={isActive(link) ? "true" : undefined}
+        >
+          {link.label}
+        </a>
+      ))
+    }
+  </nav>
+  <div class="dm-header-right">
+    <div class="dm-header-social">
+      <SocialIcons />
+    </div>
+  </div>
+</header>
+
+<style>
+  .dm-header {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    height: 100%;
+    padding-inline: 0;
+    width: 100%;
+  }
+
+  .dm-header-nav {
+    display: none;
+    gap: 0.25rem;
+    height: 100%;
+  }
+
+  .dm-header-tab {
+    align-items: center;
+    border-bottom: 2px solid transparent;
+    color: var(--sl-color-gray-3);
+    display: inline-flex;
+    font-size: 0.875rem;
+    font-weight: 500;
+    height: 100%;
+    padding-inline: 0.625rem;
+    position: relative;
+    text-decoration: none;
+    transition: color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+    white-space: nowrap;
+  }
+
+  .dm-header-tab:hover {
+    color: var(--sl-color-white);
+  }
+
+  .dm-header-tab-active,
+  .dm-header-tab-active:hover {
+    color: var(--sl-color-white);
+  }
+
+  .dm-header-tab-active::after {
+    background: var(--sl-color-text-accent);
+    border-radius: 1px;
+    bottom: -1px;
+    content: "";
+    height: 2px;
+    left: 0.625rem;
+    position: absolute;
+    right: 0.625rem;
+  }
+
+  .dm-header-right {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+    margin-inline-start: auto;
+    min-width: 0;
+  }
+
+  .dm-header-social {
+    align-items: center;
+    display: flex;
+  }
+
+  .dm-header-social :global(a) {
+    color: var(--sl-color-gray-3);
+  }
+
+  .dm-header-social :global(a:hover) {
+    color: var(--sl-color-white);
+  }
+
+  @media (min-width: 64rem) {
+    .dm-header-nav {
+      display: flex;
+    }
+  }
+
+  @media (max-width: 63.99rem) {
+    .dm-header-social {
+      display: none;
+    }
+  }
+</style>

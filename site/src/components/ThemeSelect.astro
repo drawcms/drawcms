@@ -1,0 +1,117 @@
+---
+import DmIcon from "./DmIcon.astro";
+---
+
+<starlight-theme-select class="dm-theme-pill">
+  <button
+    type="button"
+    class="dm-theme-pill-btn"
+    aria-label="Change theme preference"
+    aria-haspopup="menu"
+    aria-expanded="false"
+  >
+    <span class="dm-theme-pill-icon" data-pill-icon="auto"><DmIcon name="monitor" size="0.9375rem" /></span>
+    <span class="dm-theme-pill-icon dm-pill-hidden" data-pill-icon="light"><DmIcon name="sun" size="0.9375rem" /></span>
+    <span class="dm-theme-pill-icon dm-pill-hidden" data-pill-icon="dark"><DmIcon name="moon" size="0.9375rem" /></span>
+  </button>
+</starlight-theme-select>
+
+<script>
+  type Theme = 'auto' | 'dark' | 'light';
+
+  const storageKey = 'starlight-theme';
+
+  const parseTheme = (theme: unknown): Theme =>
+    theme === 'auto' || theme === 'dark' || theme === 'light' ? theme : 'auto';
+
+  const loadTheme = (): Theme =>
+    parseTheme(typeof localStorage !== 'undefined' && localStorage.getItem(storageKey));
+
+  function storeTheme(theme: Theme): void {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(storageKey, theme === 'light' || theme === 'dark' ? theme : '');
+    }
+  }
+
+  const getPreferredColorScheme = (): 'light' | 'dark' =>
+    matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+
+  const ORDER: Theme[] = ['auto', 'light', 'dark'];
+
+  function applyPickers(theme: Theme): void {
+    document
+      .querySelectorAll<HTMLElement>('starlight-theme-select [data-pill-icon]')
+      .forEach((el) => {
+        el.classList.toggle('dm-pill-hidden', el.dataset.pillIcon !== theme);
+      });
+  }
+
+  // Expose an updater for Starlight's inline ThemeProvider script.
+  Object.assign(window.StarlightThemeProvider ?? {}, {
+    updatePickers(theme: Theme = loadTheme()) {
+      document.documentElement.dataset.theme =
+        theme === 'auto' ? getPreferredColorScheme() : theme;
+      applyPickers(theme);
+    },
+  });
+
+  function onThemeChange(theme: Theme): void {
+    document.documentElement.dataset.theme =
+      theme === 'auto' ? getPreferredColorScheme() : theme;
+    storeTheme(theme);
+    applyPickers(theme);
+  }
+
+  matchMedia(`(prefers-color-scheme: light)`).addEventListener('change', () => {
+    if (loadTheme() === 'auto') onThemeChange('auto');
+  });
+
+  class DmThemePill extends HTMLElement {
+    constructor() {
+      super();
+      const btn = this.querySelector('button');
+      btn?.addEventListener('click', () => {
+        const next = ORDER[(ORDER.indexOf(loadTheme()) + 1) % ORDER.length] as Theme;
+        onThemeChange(next);
+      });
+      applyPickers(loadTheme());
+    }
+  }
+  customElements.define('starlight-theme-select', DmThemePill);
+</script>
+
+<style>
+  .dm-theme-pill {
+    display: inline-flex;
+  }
+
+  .dm-theme-pill-btn {
+    align-items: center;
+    background: var(--sl-color-bg-inline-code);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 999px;
+    color: var(--sl-color-gray-3);
+    cursor: pointer;
+    display: inline-flex;
+    height: 2rem;
+    justify-content: center;
+    transition:
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      border-color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+    width: 2rem;
+  }
+
+  .dm-theme-pill-btn:hover {
+    border-color: var(--sl-color-gray-4);
+    color: var(--sl-color-white);
+  }
+
+  .dm-theme-pill-icon {
+    align-items: center;
+    display: inline-flex;
+  }
+
+  .dm-theme-pill-icon.dm-pill-hidden {
+    display: none;
+  }
+</style>

@@ -1,0 +1,281 @@
+---
+import DmIcon from "./DmIcon.astro";
+
+const { entry, sidebar } = Astro.locals.starlightRoute;
+const data = entry.data;
+
+const title = data.title;
+const description = data.description ?? "";
+
+/**
+ * Eyebrow: a link rendered above the title (Postiz-style). Set per frontmatter
+ * via `eyebrow` / `eyebrowLink`, otherwise fall back to the first sidebar
+ * group containing this page.
+ */
+let eyebrow = (data as { eyebrow?: string }).eyebrow;
+let eyebrowLink = (data as { eyebrowLink?: string }).eyebrowLink;
+
+if (!eyebrow && sidebar.length) {
+  const group = sidebar.find((item) => {
+    if (item.type === "link") return item.href === entry.slug || item.isCurrent;
+    return (item.entries ?? []).some(
+      (child) => (child as { isCurrent?: boolean }).isCurrent,
+    );
+  });
+  if (group) {
+    eyebrow = group.label;
+    // Link the eyebrow to the group's first page.
+    const first =
+      group.type === "link" ? group : group.entries.find((e) => e.type === "link");
+    if (first && first.type === "link") eyebrowLink = first.href;
+  }
+}
+
+const pageUrl = new URL(Astro.url.pathname, Astro.site ?? "https://drawcms.com").toString();
+---
+
+<div class="dm-page-head">
+  <div class="dm-page-head-main">
+    {
+      eyebrow && (
+        <p class="dm-page-eyebrow">
+          {eyebrowLink ? <a href={eyebrowLink}>{eyebrow}</a> : eyebrow}
+        </p>
+      )
+    }
+    <h1 id="_top">{title}</h1>
+    {description && <p class="dm-page-description">{description}</p>}
+  </div>
+
+  <div class="dm-page-actions">
+    <div class="dm-copy-page">
+      <button
+        type="button"
+        class="dm-copy-page-btn"
+        data-copy-markdown
+        aria-label="Copy page as Markdown"
+      >
+        <DmIcon name="copy" size="1rem" />
+        <span>Copy page</span>
+      </button>
+      <details class="dm-copy-page-menu">
+        <summary aria-label="More copy options">
+          <DmIcon name="chevronDown" size="1rem" />
+        </summary>
+        <div class="dm-copy-page-dropdown">
+          <button type="button" data-copy-markdown>
+            <DmIcon name="file" size="1rem" />
+            <span>Copy as Markdown</span>
+          </button>
+          <a href={pageUrl} target="_blank" rel="noopener">
+            <DmIcon name="arrowUpRight" size="1rem" />
+            <span>Open page URL</span>
+          </a>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+  const cache = new Map<string, string>();
+
+  async function fetchMarkdown(url: string): Promise<string> {
+    if (cache.has(url)) return cache.get(url) as string;
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    // Starlight builds pages as <url>/index.md when experimental content
+    // collections emit them; fall back to fetching the page and reading the
+    // rendered <article> when no markdown bundle exists.
+    let md: string | null = null;
+    try {
+      const res = await fetch(`${base}/markdown${new URL(url).pathname.slice(base.length)}.md`);
+      if (res.ok) md = await res.text();
+    } catch {
+      /* ignore */
+    }
+    if (!md) {
+      md = url;
+    }
+    cache.set(url, md);
+    return md;
+  }
+
+  async function copyText(text: string): Promise<boolean> {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>("[data-copy-markdown]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const label = btn.querySelector("span");
+      const ok = await copyText(await fetchMarkdown(window.location.href));
+      if (label && ok) {
+        label.textContent = "Copied!";
+        setTimeout(() => (label.textContent = "Copy page"), 1600);
+      }
+    });
+  });
+</script>
+
+<style>
+  .dm-page-head {
+    align-items: flex-start;
+    display: flex;
+    gap: 1.5rem;
+    justify-content: space-between;
+  }
+
+  .dm-page-head-main {
+    min-width: 0;
+  }
+
+  .dm-page-eyebrow {
+    color: var(--sl-color-text-accent);
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin: 0 0 0.375rem;
+  }
+
+  .dm-page-eyebrow a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .dm-page-eyebrow a:hover {
+    text-decoration: underline;
+  }
+
+  h1 {
+    color: var(--sl-color-white);
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    margin: 0;
+  }
+
+  .dm-page-description {
+    color: var(--sl-color-gray-3);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    margin: 0.75rem 0 0;
+  }
+
+  .dm-page-actions {
+    flex-shrink: 0;
+    padding-top: 0.25rem;
+  }
+
+  .dm-copy-page {
+    align-items: center;
+    display: inline-flex;
+    position: relative;
+  }
+
+  .dm-copy-page-btn {
+    align-items: center;
+    background: transparent;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.75rem 0 0 0.75rem;
+    color: var(--sl-color-gray-2);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 0.875rem;
+    font-weight: 500;
+    gap: 0.5rem;
+    height: 2.375rem;
+    padding-inline: 0.875rem;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-copy-page-btn:hover {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-white);
+  }
+
+  .dm-copy-page-menu {
+    position: relative;
+  }
+
+  .dm-copy-page-menu summary {
+    align-items: center;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-left: 0;
+    border-radius: 0 0.75rem 0.75rem 0;
+    color: var(--sl-color-gray-2);
+    cursor: pointer;
+    display: inline-flex;
+    height: 2.375rem;
+    justify-content: center;
+    list-style: none;
+    padding-inline: 0.5rem;
+    transition:
+      background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+      color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  .dm-copy-page-menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .dm-copy-page-menu summary:hover {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-white);
+  }
+
+  .dm-copy-page-dropdown {
+    background: var(--sl-color-bg-nav);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 0.5rem;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+    display: flex;
+    flex-direction: column;
+    min-width: 11rem;
+    padding: 0.25rem;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.375rem);
+    z-index: 20;
+  }
+
+  .dm-copy-page-dropdown button,
+  .dm-copy-page-dropdown a {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 0.375rem;
+    color: var(--sl-color-gray-2);
+    cursor: pointer;
+    display: flex;
+    font-size: 0.875rem;
+    gap: 0.625rem;
+    min-height: 2.25rem;
+    padding-inline: 0.625rem;
+    text-align: start;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .dm-copy-page-dropdown button:hover,
+  .dm-copy-page-dropdown a:hover {
+    background: var(--sl-color-bg-inline-code);
+    color: var(--sl-color-white);
+  }
+
+  @media (max-width: 39.99rem) {
+    .dm-page-head {
+      flex-direction: column;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+    }
+  }
+</style>

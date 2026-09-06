@@ -1,13 +1,19 @@
 @import "@fontsource/inter/400.css";
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
-@import "@fontsource/source-serif-4/400.css";
-@import "@fontsource/source-serif-4/600.css";
+@import "@fontsource/inter/700.css";
+
+/* ---------------------------------------------------------------------------
+ * Palette — Postiz/Mintlify docs layout, DrawCMS mint-green identity.
+ * Starlight's semantic vars are remapped so the whole chrome follows along.
+ * ------------------------------------------------------------------------- */
 
 :root,
 ::backdrop {
-  --dm-font-display: "Source Serif 4", Georgia, serif;
+  --dm-font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
   --sl-font: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Dark theme (Starlight default) — DrawCMS green-on-charcoal */
   --sl-color-white: #f3f5f4;
   --sl-color-gray-1: #e1e5e2;
   --sl-color-gray-2: #c2cac6;
@@ -33,10 +39,20 @@
   --sl-color-blue-low: #173528;
   --sl-color-blue: #63d2a4;
   --sl-color-blue-high: #a4e5c8;
-  --sl-sidebar-width: 17.5rem;
+  --sl-color-green-low: #173528;
+  --sl-color-green: #63d2a4;
+  --sl-color-green-high: #a4e5c8;
+  --sl-color-red-low: #331b1b;
+  --sl-color-red: #ff8f8f;
+  --sl-color-orange: #f5a524;
+  --sl-color-purple: #63d2a4;
+  --sl-color-purple-low: #173528;
+  --sl-color-yellow: #f5d90a;
+
+  --sl-sidebar-width: 19rem;
   --sl-content-width: 46rem;
-  --sl-nav-height: 4rem;
-  --sl-line-height: 1.75;
+  --sl-nav-height: 3.5rem;
+  --sl-line-height: 1.7;
 }
 
 :root[data-theme="light"],
@@ -67,7 +83,18 @@
   --sl-color-blue-low: #ecf8f2;
   --sl-color-blue: #0c8c5e;
   --sl-color-blue-high: #08714c;
+  --sl-color-green-low: #ecf8f2;
+  --sl-color-green: #0c8c5e;
+  --sl-color-green-high: #08714c;
+  --sl-color-red-low: #fef1f1;
+  --sl-color-red: #dc2626;
+  --sl-color-purple: #0c8c5e;
+  --sl-color-purple-low: #ecf8f2;
 }
+
+/* ---------------------------------------------------------------------------
+ * Base
+ * ------------------------------------------------------------------------- */
 
 html {
   background: var(--sl-color-bg);
@@ -80,8 +107,7 @@ body {
 }
 
 ::selection {
-  background: var(--sl-color-accent-low);
-  color: var(--sl-color-white);
+  background: color-mix(in srgb, var(--sl-color-text-accent) 25%, transparent);
 }
 
 :where(a, button, summary, select):focus-visible {
@@ -90,120 +116,62 @@ body {
   outline-offset: 3px;
 }
 
+/* ---------------------------------------------------------------------------
+ * Frame layout — sidebar full-height flush to the top; the top bar (tabs)
+ * spans only the content area, like the Postiz docs.
+ * ------------------------------------------------------------------------- */
+
+@media (min-width: 50rem) {
+  [data-has-sidebar] .header {
+    inset-inline-start: var(--sl-sidebar-width);
+    width: calc(100% - var(--sl-sidebar-width));
+    padding-inline: 2.5rem;
+    background: var(--sl-color-bg);
+    border-bottom: 1px solid var(--sl-color-hairline);
+  }
+
+  .sidebar-pane {
+    inset-block-start: 0;
+    width: var(--sl-sidebar-width);
+    background: var(--sl-color-bg-sidebar);
+    border-inline-end: 1px solid var(--sl-color-hairline);
+  }
+
+  .main-frame {
+    padding-top: var(--sl-nav-height);
+  }
+}
+
+@media (max-width: 49.99rem) {
+  .header {
+    background: var(--sl-color-bg);
+    border-bottom: 1px solid var(--sl-color-hairline);
+  }
+
+  .sidebar-pane {
+    background: var(--sl-color-bg);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Header (top tab bar)
+ * ------------------------------------------------------------------------- */
+
 header.header {
-  background: color-mix(in srgb, var(--sl-color-bg-nav) 94%, transparent);
-  border-bottom-color: var(--sl-color-hairline-light);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
-site-search button[data-open-modal] {
-  border-color: var(--sl-color-hairline-light);
-  border-radius: 0.25rem;
-  min-height: 2.5rem;
-  transition:
-    border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
-    background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 100ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-site-search button[data-open-modal]:hover {
-  background: var(--sl-color-bg-inline-code);
-  border-color: var(--sl-color-gray-4);
-}
-
-.sl-blog-header-link,
-.social-icons a {
-  align-items: center;
-  border-radius: 0.25rem;
-  display: inline-flex;
-  min-height: 2.5rem;
-}
-
-.sidebar-content {
-  padding-block-start: 1.5rem;
-}
-
-.sidebar-content .top-level > li + li {
-  margin-top: 1.5rem;
-}
-
-.sidebar-content summary {
-  cursor: pointer;
-  min-height: 2rem;
-}
-
-.sidebar-content summary .large {
-  color: var(--sl-color-gray-3);
-  font-size: var(--sl-text-2xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.sidebar-content ul ul li {
-  border-inline-start: 0;
-  margin-inline-start: 0;
-  padding-inline-start: 0;
-}
-
-#starlight__sidebar a {
-  align-items: center;
-  border-radius: 0.25rem;
-  display: flex;
-  min-height: 2.5rem;
-  padding: 0.45rem 0.625rem;
-  transition:
-    background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 100ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-#starlight__sidebar a:hover {
-  background: var(--sl-color-bg-inline-code);
-  color: var(--sl-color-white);
-}
-
-#starlight__sidebar a[aria-current="page"],
-#starlight__sidebar a[aria-current="page"]:hover,
-#starlight__sidebar a[aria-current="page"]:focus {
-  background: var(--sl-color-accent-low);
-  color: var(--sl-color-text-accent);
-  font-weight: 600;
-}
-
-.right-sidebar {
-  border-inline-start-color: var(--sl-color-hairline-light);
-}
-
-.right-sidebar-panel {
-  padding-block-start: 2rem;
-}
-
-.right-sidebar-panel h2 {
-  font-size: var(--sl-text-sm);
-  letter-spacing: -0.01em;
-}
-
-.right-sidebar-panel a {
-  border-inline-start: 1px solid transparent;
-  line-height: 1.45;
-  padding: 0.35rem 0 0.35rem 0.75rem;
-  transition:
-    border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
-    color 100ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-
-.right-sidebar-panel a[aria-current="true"] {
-  border-inline-start-color: var(--sl-color-text-accent);
-  color: var(--sl-color-text-accent);
-}
+/* ---------------------------------------------------------------------------
+ * Content typography
+ * ------------------------------------------------------------------------- */
 
 .content-panel {
   padding-block: 1.25rem;
 }
 
 .content-panel:first-child {
-  padding-block-start: clamp(2.5rem, 5vw, 4.5rem);
+  padding-block-start: clamp(2.5rem, 5vw, 4rem);
 }
 
 .content-panel + .content-panel {
@@ -211,24 +179,21 @@ site-search button[data-open-modal]:hover {
   padding-block-start: 0.5rem;
 }
 
-h1#_top,
+.sl-markdown-content {
+  font-size: 1rem;
+}
+
 .sl-markdown-content h1,
 .sl-markdown-content h2 {
   font-family: var(--dm-font-display);
-  font-weight: 400;
-  letter-spacing: -0.035em;
-}
-
-h1#_top {
-  font-size: clamp(2.5rem, 5vw, 3.5rem);
-  line-height: 1.02;
-  max-width: 18ch;
+  letter-spacing: -0.025em;
 }
 
 .sl-markdown-content h2 {
-  font-size: clamp(1.75rem, 3vw, 2.25rem);
-  line-height: 1.12;
-  margin-top: 3rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 2.5rem;
 }
 
 .sl-markdown-content h3 {
@@ -240,7 +205,7 @@ h1#_top {
 
 .sl-markdown-content p,
 .sl-markdown-content li {
-  line-height: 1.75;
+  line-height: 1.7;
 }
 
 .sl-markdown-content a:not(.sl-anchor-link):not(.sl-link-button) {
@@ -252,26 +217,26 @@ h1#_top {
 .sl-markdown-content blockquote {
   background: var(--sl-color-accent-low);
   border-inline-start: 3px solid var(--sl-color-text-accent);
-  border-radius: 0 0.25rem 0.25rem 0;
-  color: var(--sl-color-gray-1);
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: var(--sl-color-gray-2);
   padding: 1rem 1.25rem;
 }
 
 .sl-markdown-content :not(pre) > code {
-  border: 1px solid var(--sl-color-hairline-light);
-  border-radius: 0.25rem;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: 0.375rem;
   padding: 0.12em 0.32em;
 }
 
 .expressive-code,
 .sl-markdown-content table {
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
 }
 
 .sl-link-button {
-  border-radius: 0.25rem;
+  border-radius: 0.75rem;
   font-weight: 600;
-  min-height: 2.75rem;
+  min-height: 2.5rem;
   transition:
     background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
     border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
@@ -282,6 +247,143 @@ h1#_top {
 .sl-link-button:active {
   transform: translateY(1px);
 }
+
+/* ---------------------------------------------------------------------------
+ * Cards — Postiz-style bordered cards with purple icon, title, description.
+ * Overrides Starlight's default Card (which pairs via `components` config but
+ * is shadowed when content imports the package entry directly).
+ * ------------------------------------------------------------------------- */
+
+.sl-markdown-content .card-grid {
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr));
+}
+
+.sl-markdown-content article.card {
+  background: var(--sl-color-bg) !important;
+  border: 1px solid var(--sl-color-hairline-shade) !important;
+  border-radius: 0.75rem;
+  gap: 0.875rem;
+  padding: 1.25rem;
+  transition:
+    border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.sl-markdown-content article.card:hover {
+  border-color: var(--sl-color-gray-4) !important;
+  transform: translateY(-1px);
+}
+
+.sl-markdown-content article.card > .title {
+  color: var(--sl-color-white);
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 1rem;
+  font-weight: 600;
+  gap: 0.625rem;
+  line-height: 1.4;
+}
+
+.sl-markdown-content article.card .icon {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--sl-color-text-accent);
+  font-size: 1.625rem;
+  padding: 0;
+}
+
+.sl-markdown-content article.card .body {
+  color: var(--sl-color-gray-2);
+  font-size: 0.9375rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Right sidebar — "On this page" with icon + rail links
+ * ------------------------------------------------------------------------- */
+
+.right-sidebar {
+  border-inline-start: 0;
+}
+
+.right-sidebar-panel {
+  padding-block-start: calc(var(--sl-nav-height) + 0.75rem);
+}
+
+.right-sidebar-panel h2 {
+  align-items: center;
+  color: var(--sl-color-gray-1);
+  display: flex;
+  font-size: 0.875rem;
+  font-weight: 500;
+  gap: 0.5rem;
+  letter-spacing: 0;
+  margin-bottom: 0.25rem;
+}
+
+.right-sidebar-panel h2::before {
+  background: var(--sl-color-gray-3);
+  content: "";
+  display: inline-block;
+  height: 0.875rem;
+  margin-inline-end: 0.125rem;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 6h.01M8 6h13M3 12h.01M8 12h13M3 18h.01M8 18h13'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M3 6h.01M8 6h13M3 12h.01M8 12h13M3 18h.01M8 18h13'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  width: 0.875rem;
+}
+
+.right-sidebar-panel starlight-toc ul {
+  border-inline-start: 0;
+  list-style: none;
+}
+
+.right-sidebar-panel starlight-toc a {
+  border-inline-start: 1px solid var(--sl-color-hairline-light);
+  color: var(--sl-color-gray-3);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-inline-start: 0;
+  padding: 0.375rem 0 0.375rem 1rem;
+  transition:
+    border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  padding-inline-start: 1.125rem;
+}
+
+.right-sidebar-panel starlight-toc a:hover {
+  color: var(--sl-color-white);
+}
+
+.right-sidebar-panel starlight-toc a[aria-current="true"],
+.right-sidebar-panel starlight-toc a[aria-current="true"]:hover {
+  border-inline-start-color: var(--sl-color-text-accent);
+  color: var(--sl-color-text-accent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Search (rendered inside the sidebar)
+ * ------------------------------------------------------------------------- */
+
+site-search button[data-open-modal] {
+  border-color: var(--sl-color-hairline-light);
+  border-radius: 0.75rem;
+  min-height: 2.25rem;
+  transition:
+    border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+    background-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+site-search button[data-open-modal]:hover {
+  background: var(--sl-color-bg-inline-code);
+  border-color: var(--sl-color-gray-4);
+}
+
+/* ---------------------------------------------------------------------------
+ * Legacy hero + card grid (splash pages, kept for the diagram embeds)
+ * ------------------------------------------------------------------------- */
 
 html[data-has-hero] .content-panel {
   padding-block: 0;
@@ -295,7 +397,7 @@ html[data-has-hero] .hero {
 html[data-has-hero] .hero h1 {
   font-family: var(--dm-font-display);
   font-size: clamp(3rem, 7vw, 5.25rem);
-  font-weight: 400;
+  font-weight: 700;
   letter-spacing: -0.045em;
   line-height: 0.96;
 }
@@ -307,67 +409,8 @@ html[data-has-hero] .hero .tagline {
   max-width: 42rem;
 }
 
-html[data-has-hero] .hero > .hero-html {
-  margin: 0;
-  width: 100%;
-}
-
-.dm-docs-hero-diagram {
-  background-color: var(--sl-color-bg-nav);
-  background-image: radial-gradient(var(--sl-color-hairline-light) 1px, transparent 1px);
-  background-size: 1rem 1rem;
-  border: 1px solid var(--sl-color-hairline-light);
-  border-radius: 0.5rem;
-  padding: 1.25rem;
-  width: 100%;
-}
-
-.dm-docs-hero-diagram > span {
-  color: var(--sl-color-gray-3);
-  display: block;
-  font-size: var(--sl-text-2xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.dm-docs-flow {
-  align-items: center;
-  display: grid;
-  gap: 0.75rem;
-  grid-template-columns: 1fr auto 1fr auto 1fr;
-  margin-top: 2.5rem;
-}
-
-.dm-docs-flow b {
-  align-items: center;
-  background: var(--sl-color-bg);
-  border: 1px solid var(--sl-color-hairline-light);
-  border-radius: 0.25rem;
-  color: var(--sl-color-white);
-  display: flex;
-  font-size: var(--sl-text-xs);
-  font-weight: 600;
-  justify-content: center;
-  min-height: 3.25rem;
-  padding: 0.5rem;
-  text-align: center;
-}
-
-.dm-docs-flow i {
-  color: var(--sl-color-text-accent);
-  font-style: normal;
-}
-
-.dm-docs-hero-diagram p {
-  color: var(--sl-color-gray-3);
-  font-size: var(--sl-text-xs);
-  line-height: 1.5;
-  margin: 1.5rem 0 0;
-}
-
 html[data-has-hero] .sl-markdown-content {
-  border-top: 1px solid var(--sl-color-hairline-light);
+  border-top: 1px solid var(--sl-color-hairline);
   padding-block: 3rem 5rem;
 }
 
@@ -414,48 +457,128 @@ html[data-has-hero] .sl-markdown-content > ul > li a {
   text-decoration: none;
 }
 
-html:has(.sl-blog-posts) {
-  --sl-content-width: 60rem;
-}
-
-html:has(.sl-blog-posts) .sidebar,
-html:has(.sl-blog-posts) .right-sidebar-container {
-  display: none;
-}
-
-html:has(.sl-blog-posts) .main-frame,
-html:has(.sl-blog-post-footer) .main-frame {
-  padding-inline-start: 0;
-}
-
-html:has(.sl-blog-posts) .main-pane {
+.dm-docs-hero-diagram {
+  background-color: var(--sl-color-bg-nav);
+  background-image: radial-gradient(var(--sl-color-hairline-light) 1px, transparent 1px);
+  background-size: 1rem 1rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
   width: 100%;
 }
 
-html:has(.sl-blog-posts) .sl-container {
-  margin-inline: auto;
-}
-
-html:has(.sl-blog-post-footer) {
-  --sl-content-width: 46rem;
-}
-
-html:has(.sl-blog-post-footer) .sidebar {
-  display: none;
-}
-
-html:has(.sl-blog-post-footer) main .sl-container {
-  margin-inline: auto;
-}
-
-html:has(.sl-blog-posts) .content-panel:first-of-type {
+.dm-docs-hero-diagram > span {
+  color: var(--sl-color-gray-3);
   display: block;
-  padding-block-end: 2rem;
+  font-size: var(--sl-text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-html:has(.sl-blog-posts) .content-panel:nth-of-type(2) {
-  padding-block-start: 0;
+.dm-docs-flow {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  margin-top: 2.5rem;
 }
+
+.dm-docs-flow b {
+  align-items: center;
+  background: var(--sl-color-bg);
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.5rem;
+  color: var(--sl-color-white);
+  display: flex;
+  font-size: var(--sl-text-xs);
+  font-weight: 600;
+  justify-content: center;
+  min-height: 3.25rem;
+  padding: 0.5rem;
+  text-align: center;
+}
+
+.dm-docs-flow i {
+  color: var(--sl-color-text-accent);
+  font-style: normal;
+}
+
+.dm-docs-hero-diagram p {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-xs);
+  line-height: 1.5;
+  margin: 1.5rem 0 0;
+}
+
+@media (min-width: 50rem) {
+  html[data-has-hero] .hero {
+    grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+  }
+}
+
+@media (max-width: 49.99rem) {
+  html[data-has-hero] .sl-markdown-content > ul {
+    grid-template-columns: 1fr;
+  }
+
+  .dm-docs-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .dm-docs-flow i {
+    transform: rotate(90deg);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Diagram embeds
+ * ------------------------------------------------------------------------- */
+
+.dm-diagram-embed {
+  margin-block: 2rem;
+}
+
+.dm-diagram-embed-frame {
+  aspect-ratio: 16 / 10;
+  background-color: var(--sl-color-bg-nav);
+  background-image: radial-gradient(var(--sl-color-hairline-light) 1px, transparent 1px);
+  background-size: 1rem 1rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.75rem;
+  min-height: 22rem;
+  overflow: hidden;
+}
+
+.dm-diagram-embed iframe {
+  border: 0;
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.dm-diagram-embed figcaption {
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-xs);
+  line-height: 1.6;
+  margin-top: 0.75rem;
+}
+
+.dm-diagram-embed figcaption a {
+  color: var(--sl-color-text-accent);
+  font-weight: 600;
+}
+
+@media (max-width: 39.99rem) {
+  .dm-diagram-embed-frame {
+    aspect-ratio: 4 / 5;
+    min-height: 26rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Blog (starlight-blog routes rendered by this site)
+ * ------------------------------------------------------------------------- */
 
 .sl-blog-posts {
   border-top: 1px solid var(--sl-color-hairline-light);
@@ -478,7 +601,7 @@ html:has(.sl-blog-posts) .content-panel:nth-of-type(2) {
   color: var(--sl-color-white);
   font-family: var(--dm-font-display);
   font-size: clamp(1.75rem, 4vw, 2.5rem);
-  font-weight: 400;
+  font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.08;
   max-width: 22ch;
@@ -521,7 +644,7 @@ html .sl-blog-metadata-badges {
 a.sl-blog-tag {
   background: var(--sl-color-bg-inline-code);
   border-color: var(--sl-color-hairline-light);
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   color: var(--sl-color-gray-2);
   display: inline-flex;
   min-height: 2rem;
@@ -536,75 +659,13 @@ a.sl-blog-tag:hover {
   color: var(--sl-color-text-accent);
 }
 
-.dm-diagram-embed {
-  margin-block: 2rem;
-}
-
-.dm-diagram-embed-frame {
-  aspect-ratio: 16 / 10;
-  background-color: var(--sl-color-bg-nav);
-  background-image: radial-gradient(var(--sl-color-hairline-light) 1px, transparent 1px);
-  background-size: 1rem 1rem;
-  border: 1px solid var(--sl-color-hairline-light);
-  border-radius: 0.5rem;
-  min-height: 22rem;
-  overflow: hidden;
-}
-
-.dm-diagram-embed iframe {
-  border: 0;
-  display: block;
-  height: 100%;
-  width: 100%;
-}
-
-.dm-diagram-embed figcaption {
-  color: var(--sl-color-gray-3);
-  font-size: var(--sl-text-xs);
-  line-height: 1.6;
-  margin-top: 0.75rem;
-}
-
-.dm-diagram-embed figcaption a {
-  color: var(--sl-color-text-accent);
-  font-weight: 600;
-}
-
 .sl-blog-post-footer {
   border-top-color: var(--sl-color-hairline-light);
 }
 
-@media (min-width: 50rem) {
-  html[data-has-hero] .hero {
-    grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
-  }
-}
-
-@media (max-width: 49.99rem) {
-  html[data-has-hero] .hero > .hero-html {
-    max-width: 34rem;
-    order: 2;
-  }
-
-  html[data-has-hero] .sl-markdown-content > ul {
-    grid-template-columns: 1fr;
-  }
-
-  .dm-docs-flow {
-    grid-template-columns: 1fr;
-  }
-
-  .dm-docs-flow i {
-    transform: rotate(90deg);
-  }
-}
-
-@media (max-width: 39.99rem) {
-  .dm-diagram-embed-frame {
-    aspect-ratio: 4 / 5;
-    min-height: 26rem;
-  }
-}
+/* ---------------------------------------------------------------------------
+ * Motion preferences
+ * ------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   *,
