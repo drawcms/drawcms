@@ -1,0 +1,65 @@
+---
+/**
+ * Drop-in replacement for Starlight's `Card` that renders the identical
+ * design (icon, title, body — styled by custom.css `.card` rules) but makes
+ * the whole card clickable via a stretched-link overlay on the title anchor.
+ *
+ * Used instead of `@astrojs/starlight/components` because Starlight's `Card`
+ * has no `href` prop (only `LinkCard` does, which renders a different design).
+ */
+import { Icons, type StarlightIcon } from "@astrojs/starlight/components-internals/Icons";
+
+interface Props {
+	title: string;
+	href: string;
+	icon?: StarlightIcon;
+}
+
+const { title, href, icon } = Astro.props;
+---
+
+<article class="card sl-flex">
+	<p class="title sl-flex">
+		{
+			icon && (
+				<svg
+					aria-hidden="true"
+					class="icon"
+					viewBox="0 0 24 24"
+					width="16"
+					height="16"
+					fill="currentColor"
+					set:html={Icons[icon]}
+				/>
+			)
+		}
+		<span><a href={href}>{title}</a></span>
+	</p>
+	<div class="body"><slot /></div>
+</article>
+
+<style>
+	@layer starlight.components {
+		.card {
+			display: flex;
+			flex-direction: column;
+			position: relative;
+		}
+		.card svg.icon {
+			/* Same as Starlight's Icon: size follows font-size, so custom.css
+			   controls the icon size via `.card .icon { font-size: … }`. */
+			width: 1em;
+			height: 1em;
+			flex-shrink: 0;
+		}
+		.card a::before {
+			content: "";
+			position: absolute;
+			inset: 0;
+		}
+		.card a {
+			color: inherit;
+			text-decoration: none;
+		}
+	}
+</style>

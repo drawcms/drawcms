@@ -10,24 +10,21 @@ const isRtl = dir === "rtl";
   (prev || next) && (
     <div class="dm-pagination" dir={dir}>
       {prev && (
-        <a href={prev.href} rel="prev" class="dm-pagination-card">
+        <a href={prev.href} rel="prev" class="dm-pagination-card dm-pagination-prev">
+          <DmIcon name={isRtl ? "chevronRight" : "chevronLeft"} size="1.125rem" class="dm-pagination-arrow" />
           <span class="dm-pagination-text">
             <span class="dm-pagination-label">{Astro.locals.t("page.previousLink")}</span>
             <span class="dm-pagination-title">{prev.label}</span>
           </span>
-          <DmIcon name={isRtl ? "chevronRight" : "chevronRight"} size="1.125rem" class="dm-pagination-arrow" />
         </a>
       )}
       {next && (
-        <a href={next.href} rel="next" class="dm-pagination-card">
+        <a href={next.href} rel="next" class="dm-pagination-card dm-pagination-next">
           <span class="dm-pagination-text">
             <span class="dm-pagination-label">{Astro.locals.t("page.nextLink")}</span>
-            <span class="dm-pagination-sub">
-              {next.type === "link" ? "" : ""}
-            </span>
             <span class="dm-pagination-title">{next.label}</span>
           </span>
-          <DmIcon name={isRtl ? "chevronRight" : "chevronRight"} size="1.125rem" class="dm-pagination-arrow" />
+          <DmIcon name={isRtl ? "chevronLeft" : "chevronRight"} size="1.125rem" class="dm-pagination-arrow" />
         </a>
       )}
     </div>
@@ -36,10 +33,16 @@ const isRtl = dir === "rtl";
 
 <style>
   .dm-pagination {
-    display: flex;
-    flex-direction: column;
+    display: grid;
     gap: 0.75rem;
+    grid-template-columns: 1fr;
     margin-top: 2.5rem;
+  }
+
+  @media (min-width: 50rem) {
+    .dm-pagination {
+      grid-template-columns: 1fr 1fr;
+    }
   }
 
   .dm-pagination-card {
@@ -49,13 +52,27 @@ const isRtl = dir === "rtl";
     border-radius: 0.75rem;
     color: var(--sl-color-gray-3);
     display: flex;
-    justify-content: space-between;
     gap: 1rem;
     padding: 1rem 1.25rem;
     text-decoration: none;
     transition:
       border-color 100ms cubic-bezier(0.23, 1, 0.32, 1),
       background-color 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+
+  @media (min-width: 50rem) {
+    .dm-pagination-prev {
+      justify-content: flex-start;
+    }
+
+    .dm-pagination-next {
+      justify-content: flex-end;
+      text-align: right;
+    }
+
+    .dm-pagination-next .dm-pagination-text {
+      align-items: flex-end;
+    }
   }
 
   .dm-pagination-card:hover {
@@ -75,17 +92,16 @@ const isRtl = dir === "rtl";
     font-weight: 600;
   }
 
-  .dm-pagination-sub {
-    color: var(--sl-color-gray-3);
-    font-size: 0.875rem;
-  }
-
   .dm-pagination-title {
     color: var(--sl-color-gray-3);
     font-size: 0.875rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .dm-pagination-card:hover .dm-pagination-title {
+    color: var(--sl-color-text-accent);
   }
 
   .dm-pagination-arrow {

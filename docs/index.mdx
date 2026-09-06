@@ -6,7 +6,8 @@ eyebrow: "Get started"
 eyebrowLink: /docs/quick-start
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components";
+import Card from "@drawcms/docs-card";
+import { CardGrid } from "@astrojs/starlight/components";
 
 DrawCMS manages the whole arc of a technical explanation in one place. Import a diagram, direct
 meaningful change with the motion composer, and publish a story your audience can follow — or hand
@@ -17,14 +18,14 @@ the editor to your own app through its embedded contract.
 The docs are split three ways. Start with the one that describes you.
 
 <CardGrid>
-  <Card title="Using DrawCMS" icon="open-book">
+  <Card title="Using DrawCMS" href="/docs/core-concepts" icon="open-book">
     How the product works: the canvas, the composer, stories, and document format. Applies to
     everyone.
   </Card>
-  <Card title="Self-hosting" icon="cloud-download">
+  <Card title="Self-hosting" href="/docs/self-hosting" icon="cloud-download">
     Install it yourself, configure providers, and run the web app in production.
   </Card>
-  <Card title="Embedding" icon="server">
+  <Card title="Embedding" href="/docs/design-system" icon="server">
     Mount the editor inside your own product and theme it with stable CSS tokens.
   </Card>
 </CardGrid>
@@ -32,13 +33,13 @@ The docs are split three ways. Start with the one that describes you.
 ## Build on DrawCMS
 
 <CardGrid>
-  <Card title="Plugin & host API" icon="code-branch">
+  <Card title="Plugin & host API" href="/docs/plugin-api" icon="code-branch">
     Extend the editor through its versioned contract and listen to document events.
   </Card>
-  <Card title="WebMCP agents" icon="forward-slash">
+  <Card title="WebMCP agents" href="/docs/webmcp" icon="forward-slash">
     Let browser agents build animated diagrams through the WebMCP endpoint.
   </Card>
-  <Card title="Document format" icon="document">
+  <Card title="Document format" href="/docs/document-format" icon="document">
     Understand the portable `.drawcms` schema and how it versions.
   </Card>
 </CardGrid>

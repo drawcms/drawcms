@@ -117,6 +117,19 @@ export default defineConfig({
           replacement: new URL("./node_modules/@astrojs/starlight/components.ts", import.meta.url)
             .pathname,
         },
+        {
+          // Clickable variant of Starlight's Card (same design, + `href`).
+          find: /^@drawcms\/docs-card$/,
+          replacement: new URL("./src/components/Card.astro", import.meta.url).pathname,
+        },
+        {
+          // Not in the package's `exports` map, but needed for the icon set.
+          find: /^@astrojs\/starlight\/components-internals\/Icons$/,
+          replacement: new URL(
+            "./node_modules/@astrojs/starlight/components-internals/Icons.ts",
+            import.meta.url,
+          ).pathname,
+        },
       ],
     },
   },
