@@ -518,7 +518,7 @@ describe("ExportMenu dismissal", () => {
     await user.click(screen.getByRole("button", { name: "Export" }));
 
     screen.getByRole("menuitem", { name: /export as png/i });
-    screen.getByRole("menuitem", { name: /export as gif/i });
+    screen.getByRole("menuitem", { name: /animated gif/i });
     expect(
       (screen.getByRole("menuitem", { name: /export as svg/i }) as HTMLButtonElement).disabled,
     ).toBe(true);

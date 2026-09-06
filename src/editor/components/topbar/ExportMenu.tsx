@@ -467,14 +467,15 @@ export function ExportMenu({
               </button>
               <button
                 onClick={() => setGifMode(true)}
-                disabled={empty}
+                disabled={empty || exporting}
+                aria-haspopup="dialog"
                 className={entryClass}
                 role="menuitem"
                 data-menu-item
               >
                 <Film size={16} className="text-primary" />
                 <span className="text-left">
-                  <span className="block font-medium">Export as GIF</span>
+                  <span className="block font-medium">Animated GIF…</span>
                   <span className="block text-xs text-muted-foreground">
                     Animated recording · {sizeSummary} · {gifDuration}s
                   </span>
