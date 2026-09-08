@@ -46,6 +46,8 @@ interface TopBarProps {
   status?: ReactNode;
   /** Host-specific actions shown before export. */
   actions?: ReactNode;
+  /** Host primary actions shown after export. */
+  trailingActions?: ReactNode;
   /** Hosts can remove export entirely from restricted viewer surfaces. */
   showExport?: boolean;
   /** Cloud mode keeps the File menu but uses SaaS terminology inside it. */
@@ -97,6 +99,7 @@ export function TopBar({
   leading,
   status,
   actions,
+  trailingActions,
   showExport = true,
   documentMenuMode = "local",
   menuActions,
@@ -281,6 +284,7 @@ export function TopBar({
               paidExportUpgradeFallback={paidExportUpgradeFallback}
             />
           )}
+          {trailingActions && <div className="flex items-center gap-1">{trailingActions}</div>}
         </div>
       </div>
     </header>

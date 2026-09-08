@@ -389,7 +389,7 @@ export function ExportMenu({
         aria-haspopup="menu"
       >
         <Download size={14} />
-        <span className="hidden md:inline">Export</span>
+        <span>Export</span>
         <ChevronDown
           size={12}
           className={`text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
@@ -435,7 +435,7 @@ export function ExportMenu({
                   <ImageIcon size={16} className="text-primary" />
                 )}
                 <span className="text-left">
-                  <span className="block font-medium">Export as PNG</span>
+                  <span className="block font-medium">Download PNG</span>
                   <span className="block text-xs text-muted-foreground">
                     Static image · {sizeSummary}
                   </span>
@@ -453,7 +453,7 @@ export function ExportMenu({
                 <FileCode size={16} className="text-primary" />
                 <span className="min-w-0 text-left">
                   <span className="flex items-center gap-1.5 font-medium">
-                    Export as SVG
+                    Download SVG
                     {!canExportSvg && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         <LockKeyhole size={10} aria-hidden /> {paidExportBadgeLabel}
@@ -475,7 +475,7 @@ export function ExportMenu({
               >
                 <Film size={16} className="text-primary" />
                 <span className="text-left">
-                  <span className="block font-medium">Animated GIF…</span>
+                  <span className="block font-medium">Download animated GIF…</span>
                   <span className="block text-xs text-muted-foreground">
                     Animated recording · {sizeSummary} · {gifDuration}s
                   </span>
@@ -493,7 +493,7 @@ export function ExportMenu({
                 <Video size={16} className="text-primary" />
                 <span className="min-w-0 text-left">
                   <span className="flex items-center gap-1.5 font-medium">
-                    Export as MP4
+                    Download MP4
                     {!canExportMp4 && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         <LockKeyhole size={10} aria-hidden /> {paidExportBadgeLabel}

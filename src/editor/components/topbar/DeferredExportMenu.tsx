@@ -39,7 +39,7 @@ export function DeferredExportMenu(props: ExportMenuProps) {
       aria-haspopup="menu"
     >
       <Download size={14} />
-      <span className="hidden md:inline">Export</span>
+      <span>Export</span>
       <ChevronDown size={12} className="text-muted-foreground" />
     </button>
   );
@@ -55,7 +55,7 @@ function ExportLoadingButton() {
       className="flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground md:px-4"
     >
       <Loader2 size={14} className="animate-spin motion-reduce:animate-none" aria-hidden />
-      <span className="hidden md:inline">Export</span>
+      <span>Export</span>
     </button>
   );
 }

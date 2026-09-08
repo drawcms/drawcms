@@ -517,13 +517,13 @@ describe("ExportMenu dismissal", () => {
 
     await user.click(screen.getByRole("button", { name: "Export" }));
 
-    screen.getByRole("menuitem", { name: /export as png/i });
-    screen.getByRole("menuitem", { name: /animated gif/i });
+    screen.getByRole("menuitem", { name: /download png/i });
+    screen.getByRole("menuitem", { name: /download animated gif/i });
     expect(
-      (screen.getByRole("menuitem", { name: /export as svg/i }) as HTMLButtonElement).disabled,
+      (screen.getByRole("menuitem", { name: /download svg/i }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(
-      (screen.getByRole("menuitem", { name: /export as mp4/i }) as HTMLButtonElement).disabled,
+      (screen.getByRole("menuitem", { name: /download mp4/i }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(screen.getByRole("menuitem", { name: "Upgrade to Pro" }).getAttribute("href")).toBe(
       "/dashboard/billing",
@@ -744,5 +744,34 @@ describe("TopBar host chrome", () => {
     await user.click(exportButton);
     await user.click(screen.getByRole("menuitem", { name: /download presentation/i }));
     expect(onDownloadPresentation).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders trailing host actions after Export", () => {
+    render(
+      <TopBar
+        isAnimating={false}
+        setIsAnimating={() => {}}
+        nodes={[]}
+        documentName="Cloud diagram"
+        dirty={false}
+        importers={[]}
+        artifactExporters={[]}
+        onRenameDocument={() => {}}
+        onNewDocument={() => {}}
+        onOpenDrawcms={() => {}}
+        onSaveDocument={() => {}}
+        onClearCanvas={() => {}}
+        onImport={() => {}}
+        onExportArtifact={() => {}}
+        onShowGuide={() => {}}
+        trailingActions={<button type="button">Share</button>}
+      />,
+    );
+
+    const exportButton = screen.getByRole("button", { name: "Export" });
+    const shareButton = screen.getByRole("button", { name: "Share" });
+    expect(exportButton.compareDocumentPosition(shareButton)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 });

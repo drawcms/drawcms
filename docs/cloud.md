@@ -27,7 +27,7 @@ A Cloud viewer link opens `/share/<token>`. Its matching embed URL is
 presentation steps, but cannot change the diagram. Embed routes allow framing;
 other Cloud routes deny it.
 
-Create and revoke links from a diagram's Share panel. Treat a viewer URL as a
+Create and revoke links from a diagram's Share dialog. Treat a viewer URL as a
 secret while it is active: anyone who has it can open the published diagram
 until the link expires or is revoked.
 

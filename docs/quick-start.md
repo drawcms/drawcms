@@ -82,7 +82,7 @@ The live example above uses this exact HTML:
 ```
 ````
 
-For your own diagram, copy the iframe from its Share panel. Its `src` contains
+For your own diagram, copy the iframe from the Share dialog's Embed tab. Its `src` contains
 that diagram's viewer token instead of `/embed/sample`.
 
 GitHub README files do not render iframes. Export the diagram as a GIF, commit
