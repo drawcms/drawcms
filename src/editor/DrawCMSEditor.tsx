@@ -215,6 +215,8 @@ export interface DrawCMSEditorProps {
   topBarStatus?: React.ReactNode;
   /** Host actions rendered before the editor's export control. */
   topBarActions?: React.ReactNode;
+  /** Host primary actions rendered after the editor's export control. */
+  topBarTrailingActions?: React.ReactNode;
   /** Host overlay rendered inside the canvas region (e.g. a watermark badge). */
   canvasOverlay?: React.ReactNode;
   /** Cloud mode replaces desktop file language and moves the menu after Export. */
@@ -252,6 +254,13 @@ export interface DrawCMSEditorProps {
    * browsers ignore the option and retain the ordinary editor experience.
    */
   webMcp?: boolean;
+  /**
+   * Host hook to rewrite the "Draw with ChatGPT" deep link at click time.
+   * Authenticated hosts (cloud) use it to mint a one-time agent sign-in URL
+   * in the background, so the single click carries the credential into the
+   * agent browser. Absent (OSS) keeps the plain codex:// page deep link.
+   */
+  chatGptDeepLinkResolver?: (pageUrl: string) => Promise<string | null>;
   /** Called after the editor has committed and yielded one animation frame. */
   onReady?: () => void;
   /**
@@ -282,6 +291,7 @@ export function DrawCMSEditor({
   topBarLeading,
   topBarStatus,
   topBarActions,
+  topBarTrailingActions,
   canvasOverlay,
   documentMenuMode = "local",
   showTopBar = true,
@@ -298,6 +308,7 @@ export function DrawCMSEditor({
   paidExportUpgradeLabel,
   paidExportUpgradeFallback,
   webMcp = false,
+  chatGptDeepLinkResolver,
   onReady,
   animationControl,
 }: DrawCMSEditorProps) {
@@ -1156,6 +1167,7 @@ export function DrawCMSEditor({
           leading={topBarLeading}
           status={topBarStatus}
           actions={topBarActions}
+          trailingActions={topBarTrailingActions}
           showExport={showExport}
           documentMenuMode={documentMenuMode}
           menuActions={topBarMenuActions}
@@ -1210,6 +1222,7 @@ export function DrawCMSEditor({
                   extraEdgeTypes={host.edgeTypes}
                   readOnly={isPresentation}
                   webMcp={!isPresentation && webMcp}
+                  chatGptDeepLinkResolver={chatGptDeepLinkResolver}
                   minZoom={minZoom}
                   activeStoryTargets={isPresentation ? activePresentationTargets : undefined}
                 />

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, SquareArrowOutUpRight } from "lucide-react";
 
 function OpenAiLogo({ className }: { className?: string }) {
   return (
@@ -21,14 +21,37 @@ interface ChatGptLink {
   connected: boolean;
 }
 
+export interface ChatGptButtonProps {
+  /**
+   * Host-supplied deep-link resolver. Receives the page URL stamped with the
+   * webmcpconnected flag and returns the link to hand to the agent (or null
+   * to fall back to the built-in codex:// deep link). Authenticated hosts use
+   * this to mint a one-time agent sign-in URL in the background so the click
+   * itself can carry the credential into the isolated agent browser.
+   */
+  resolveDeepLink?: (pageUrl: string) => Promise<string | null>;
+}
+
+function buildPageUrl(): { pageUrl: string; connected: boolean } {
+  const url = new URL(window.location.href);
+  const connected = url.searchParams.get("webmcpconnected") === "true";
+  url.hash = "";
+  url.searchParams.set("webmcpconnected", "true");
+  return { pageUrl: url.toString(), connected };
+}
+
 /**
  * Standalone dark pill beside the canvas controls: deep links into the
  * ChatGPT desktop app (codex://browser) pointed at this editor page with the
  * WebMCP connected flag set. When the page itself was opened through that
  * link, the entry becomes a "Connected" status and the shine stops.
  */
-export function ChatGptButton() {
+export function ChatGptButton({ resolveDeepLink }: ChatGptButtonProps = {}) {
   const [link, setLink] = useState<ChatGptLink | null>(null);
+  const [resolving, setResolving] = useState(false);
+  // Captured on mount and reused by the click handler so resolving never
+  // re-reads window.location (hosts may replace it mid-session).
+  const pageUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Reading window.location is mount-only external state; defer the update
@@ -36,12 +59,10 @@ export function ChatGptButton() {
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      const url = new URL(window.location.href);
-      const connected = url.searchParams.get("webmcpconnected") === "true";
-      url.hash = "";
-      url.searchParams.set("webmcpconnected", "true");
+      const { pageUrl, connected } = buildPageUrl();
+      pageUrlRef.current = pageUrl;
       setLink({
-        href: `codex://browser?url=${encodeURIComponent(url.toString())}`,
+        href: `codex://browser?url=${encodeURIComponent(pageUrl)}`,
         connected,
       });
     });
@@ -65,9 +86,40 @@ export function ChatGptButton() {
     );
   }
 
+  const startResolving = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!resolveDeepLink) return;
+    // Keep the default codex:// navigation; the resolver swaps the href in
+    // place before the browser acts on it. A slow or failed mint must not
+    // fall back to a credential-less URL the agent cannot open, so the click
+    // is suspended while resolving.
+    event.preventDefault();
+    const pageUrl = pageUrlRef.current;
+    if (!pageUrl) return;
+    setResolving(true);
+    void resolveDeepLink(pageUrl)
+      .then((href) => {
+        window.location.href = href ?? link.href;
+      })
+      .catch(() => {})
+      .finally(() => {
+        setResolving(false);
+      });
+  };
+
+  if (resolving) {
+    return (
+      <span role="status" aria-label="Preparing ChatGPT sign-in link" className={pillClass}>
+        <OpenAiLogo />
+        <span className="hidden sm:inline">Preparing…</span>
+        <Loader2 size={14} className="shrink-0 animate-spin text-zinc-400" aria-hidden />
+      </span>
+    );
+  }
+
   return (
     <a
       href={link.href}
+      onClick={startResolving}
       aria-label="Draw with ChatGPT in the ChatGPT desktop app"
       title="Draw with ChatGPT"
       className={`${pillClass} transition-colors duration-100 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}

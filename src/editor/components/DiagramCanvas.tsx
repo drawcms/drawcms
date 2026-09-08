@@ -762,6 +762,9 @@ interface DiagramCanvasProps {
   minZoom?: number;
   /** Enables the "Generate with ChatGPT" WebMCP deep link in the canvas controls. */
   webMcp?: boolean;
+  /** Host hook to rewrite the "Draw with ChatGPT" deep link on click (e.g. an
+   * authenticated host minting a one-time agent sign-in URL). */
+  chatGptDeepLinkResolver?: (pageUrl: string) => Promise<string | null>;
 }
 
 function CanvasControls({ onOpenSteps }: { onOpenSteps?: () => void }) {
@@ -891,6 +894,7 @@ export function DiagramCanvas({
   onCancelSequenceEdgeTool,
   minZoom = 0.5,
   webMcp = false,
+  chatGptDeepLinkResolver,
 }: DiagramCanvasProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const reactFlowRef = useRef<ReactFlowInstance<any, any> | null>(null);
@@ -1214,7 +1218,7 @@ export function DiagramCanvas({
         <CanvasControls onOpenSteps={onOpenSteps} />
         {webMcp && (
           <Panel position="bottom-left" className="!mb-3">
-            <ChatGptButton />
+            <ChatGptButton resolveDeepLink={chatGptDeepLinkResolver} />
           </Panel>
         )}
       </ReactFlow>
