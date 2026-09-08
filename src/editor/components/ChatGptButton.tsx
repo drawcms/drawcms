@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, SquareArrowOutUpRight } from "lucide-react";
+import { Check, Copy, Loader2, SquareArrowOutUpRight } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverTitle,
+  PopoverTrigger,
+} from "./ui/popover";
 
 function OpenAiLogo({ className }: { className?: string }) {
   return (
@@ -44,11 +51,13 @@ function buildPageUrl(): { pageUrl: string; connected: boolean } {
  * Standalone dark pill beside the canvas controls: deep links into the
  * ChatGPT desktop app (codex://browser) pointed at this editor page with the
  * WebMCP connected flag set. When the page itself was opened through that
- * link, the entry becomes a "Connected" status and the shine stops.
+ * link, the entry becomes a "Connected" status with a short prompt guide —
+ * agents answer most reliably when the prompt starts with "use webmcp to …".
  */
 export function ChatGptButton({ resolveDeepLink }: ChatGptButtonProps = {}) {
   const [link, setLink] = useState<ChatGptLink | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [copied, setCopied] = useState(false);
   // Captured on mount and reused by the click handler so resolving never
   // re-reads window.location (hosts may replace it mid-session).
   const pageUrlRef = useRef<string | null>(null);
@@ -71,18 +80,56 @@ export function ChatGptButton({ resolveDeepLink }: ChatGptButtonProps = {}) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
   if (!link) return null;
 
   const pillClass =
     "relative flex min-h-10 items-center gap-2 overflow-hidden rounded-full bg-zinc-950 px-3.5 py-2 text-sm font-semibold text-white shadow-md";
 
   if (link.connected) {
+    const copyTemplate = async () => {
+      try {
+        await navigator.clipboard.writeText("use webmcp to …");
+        setCopied(true);
+      } catch {
+        // Clipboard can be denied; the text remains selectable below.
+      }
+    };
+
     return (
-      <span role="status" aria-label="ChatGPT connected" className={pillClass}>
-        <OpenAiLogo />
-        <span className="hidden sm:inline">Connected</span>
-        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-emerald-400" />
-      </span>
+      <Popover>
+        <PopoverTrigger
+          className={pillClass}
+          aria-label="ChatGPT connected — show the prompt guide for using WebMCP tools"
+        >
+          <OpenAiLogo />
+          <span className="hidden sm:inline">Connected</span>
+          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-emerald-400" />
+        </PopoverTrigger>
+        <PopoverContent side="top" align="start" className="w-72 p-3">
+          <PopoverTitle>Prompting ChatGPT</PopoverTitle>
+          <PopoverDescription className="mt-1 leading-5">
+            Start your prompt with this prefix so ChatGPT drives the canvas through this page&apos;s
+            WebMCP tools instead of answering in chat alone.
+          </PopoverDescription>
+          <p className="mt-2 rounded-md border border-border bg-muted/50 px-2.5 py-2 font-mono text-xs text-muted-foreground break-words select-all">
+            use webmcp to &lt;your request&gt;
+          </p>
+          <button
+            type="button"
+            onClick={() => void copyTemplate()}
+            className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+          >
+            {copied ? <Check size={13} aria-hidden /> : <Copy size={13} aria-hidden />}
+            <span>{copied ? "Copied" : "Copy prefix"}</span>
+          </button>
+        </PopoverContent>
+      </Popover>
     );
   }
 
