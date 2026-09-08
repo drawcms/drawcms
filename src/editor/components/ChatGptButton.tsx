@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Loader2, SquareArrowOutUpRight } from "lucide-react";
+import { Check, Copy, Loader2, Sparkles, SquareArrowOutUpRight } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -39,6 +39,9 @@ export interface ChatGptButtonProps {
   resolveDeepLink?: (pageUrl: string) => Promise<string | null>;
 }
 
+/** sessionStorage key so the auto-opened hint returns next session, not next reload. */
+const PROMPT_HINT_SEEN_KEY = "drawcms.webmcp.prompt-hint-seen";
+
 function buildPageUrl(): { pageUrl: string; connected: boolean } {
   const url = new URL(window.location.href);
   const connected = url.searchParams.get("webmcpconnected") === "true";
@@ -47,17 +50,37 @@ function buildPageUrl(): { pageUrl: string; connected: boolean } {
   return { pageUrl: url.toString(), connected };
 }
 
+function hasSeenPromptHint(): boolean {
+  try {
+    return window.sessionStorage.getItem(PROMPT_HINT_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markPromptHintSeen(): void {
+  try {
+    window.sessionStorage.setItem(PROMPT_HINT_SEEN_KEY, "1");
+  } catch {
+    // Storage denied (private mode) — the hint simply re-opens per load.
+  }
+}
+
 /**
  * Standalone dark pill beside the canvas controls: deep links into the
  * ChatGPT desktop app (codex://browser) pointed at this editor page with the
  * WebMCP connected flag set. When the page itself was opened through that
- * link, the entry becomes a "Connected" status with a short prompt guide —
- * agents answer most reliably when the prompt starts with "use webmcp to …".
+ * link, the entry becomes a "Connected" status whose prompt guide opens by
+ * itself once per session — most agents need the "use webmcp to …" prefix to
+ * call the page's tools instead of answering in chat.
  */
 export function ChatGptButton({ resolveDeepLink }: ChatGptButtonProps = {}) {
   const [link, setLink] = useState<ChatGptLink | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Null until the mount check ran, so SSR/tests never mismatch hydration.
+  const [hintSeen, setHintSeen] = useState<boolean | null>(null);
   // Captured on mount and reused by the click handler so resolving never
   // re-reads window.location (hosts may replace it mid-session).
   const pageUrlRef = useRef<string | null>(null);
@@ -74,6 +97,11 @@ export function ChatGptButton({ resolveDeepLink }: ChatGptButtonProps = {}) {
         href: `codex://browser?url=${encodeURIComponent(pageUrl)}`,
         connected,
       });
+      if (connected) {
+        const seen = hasSeenPromptHint();
+        setHintSeen(seen);
+        if (!seen) setGuideOpen(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -92,27 +120,68 @@ export function ChatGptButton({ resolveDeepLink }: ChatGptButtonProps = {}) {
     "relative flex min-h-10 items-center gap-2 overflow-hidden rounded-full bg-zinc-950 px-3.5 py-2 text-sm font-semibold text-white shadow-md";
 
   if (link.connected) {
+    const dismissGuide = () => {
+      setGuideOpen(false);
+      markPromptHintSeen();
+      setHintSeen(true);
+    };
+
     const copyTemplate = async () => {
       try {
         await navigator.clipboard.writeText("use webmcp to …");
         setCopied(true);
+        markPromptHintSeen();
+        setHintSeen(true);
       } catch {
         // Clipboard can be denied; the text remains selectable below.
       }
     };
 
     return (
-      <Popover>
+      <Popover
+        open={guideOpen}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setGuideOpen(true);
+            return;
+          }
+          dismissGuide();
+        }}
+      >
         <PopoverTrigger
-          className={pillClass}
-          aria-label="ChatGPT connected — show the prompt guide for using WebMCP tools"
+          className={`${pillClass} transition-colors duration-100 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
+          aria-label={
+            hintSeen
+              ? "ChatGPT connected — show the prompt guide for using WebMCP tools"
+              : "ChatGPT connected — new: show the prompt guide for using WebMCP tools"
+          }
         >
           <OpenAiLogo />
           <span className="hidden sm:inline">Connected</span>
-          <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-emerald-400" />
+          {/* Pulse until the guide has been seen: attention without a nag
+              once dismissed (re-checked per browser session). */}
+          <span
+            aria-hidden="true"
+            className={`size-1.5 shrink-0 rounded-full bg-emerald-400 ${
+              hintSeen ? "" : "animate-pulse motion-reduce:animate-none"
+            }`}
+          />
         </PopoverTrigger>
         <PopoverContent side="top" align="start" className="w-72 p-3">
-          <PopoverTitle>Prompting ChatGPT</PopoverTitle>
+          <div className="flex items-start justify-between gap-2">
+            <PopoverTitle className="flex items-center gap-1.5">
+              <Sparkles size={14} className="shrink-0 text-emerald-500" aria-hidden />
+              Prompting ChatGPT
+            </PopoverTitle>
+            <button
+              type="button"
+              onClick={dismissGuide}
+              aria-label="Dismiss the prompt guide"
+              className="flex min-h-6 min-w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none"
+            >
+              <span aria-hidden>×</span>
+            </button>
+          </div>
           <PopoverDescription className="mt-1 leading-5">
             Start your prompt with this prefix so ChatGPT drives the canvas through this page&apos;s
             WebMCP tools instead of answering in chat alone.

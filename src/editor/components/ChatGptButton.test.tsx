@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatGptButton } from "./ChatGptButton";
 
@@ -12,6 +12,7 @@ const defaultDeepLink = `codex://browser?url=${encodeURIComponent(
 describe("ChatGptButton", () => {
   afterEach(() => {
     cleanup();
+    sessionStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -60,33 +61,53 @@ describe("ChatGptButton", () => {
   it("shows the connected status when opened through the deep link", async () => {
     window.history.replaceState({}, "", "/editor/?webmcpconnected=true");
     render(<ChatGptButton />);
-    const trigger = await screen.findByRole("button", { name: /connected.*prompt guide/i });
-    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    // The guide auto-opens on first connection (its own test below); the key
+    // assertions here are the state swap: no link, no shine.
+    await screen.findByRole("button", { name: /connected.*prompt guide/i });
     expect(screen.queryByRole("link")).toBeNull();
     expect(document.querySelector(".dm-chatgpt-shine")).toBeNull();
   });
 
-  it("offers the use-webmcp prompt guide in the connected state", async () => {
+  it("auto-opens the prompt guide once per session in the connected state", async () => {
     const user = userEvent.setup();
     window.history.replaceState({}, "", "/editor/?webmcpconnected=true");
     render(<ChatGptButton />);
 
-    // Guide starts closed; the pill itself is the popover trigger.
-    const trigger = await screen.findByRole("button", { name: /show the prompt guide/i });
-    expect(screen.queryByText(/Prompting ChatGPT/)).toBeNull();
-
-    await user.click(trigger);
+    // The guide opens by itself so the "use webmcp to …" prefix is noticed.
     expect(await screen.findByText(/Prompting ChatGPT/)).toBeTruthy();
-    expect(screen.getByText(/use webmcp to/)).toBeTruthy();
-
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(window.navigator, "clipboard", {
       value: { writeText },
       configurable: true,
     });
-    await user.click(screen.getByRole("button", { name: /copy prefix/i }));
+    const copyButton = await waitFor(() => {
+      const button = screen.getByRole("button", { name: /copy prefix/i });
+      // The portalled popup needs its own pointer-events in the DOM tree
+      // before the press can land (Base UI mounts the popup after open).
+      if (!button.closest("[data-slot='popover-content']")) {
+        throw new Error("popup not attached yet");
+      }
+      return button;
+    });
+    await user.click(copyButton);
     await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("use webmcp to …"));
-    expect(await screen.findByText("Copied")).toBeTruthy();
+
+    // Copying acknowledges the hint for this browser session.
+    expect(sessionStorage.getItem("drawcms.webmcp.prompt-hint-seen")).toBe("1");
+  });
+
+  it("stays collapsed for the rest of the session once the hint was seen", async () => {
+    sessionStorage.setItem("drawcms.webmcp.prompt-hint-seen", "1");
+    window.history.replaceState({}, "", "/editor/?webmcpconnected=true");
+    render(<ChatGptButton />);
+
+    const trigger = await screen.findByRole("button", { name: /prompt guide/i });
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/Prompting ChatGPT/)).toBeNull();
+
+    // Still available on demand.
+    await userEvent.setup().click(trigger);
+    expect(await screen.findByText(/Prompting ChatGPT/)).toBeTruthy();
   });
 
   it("swaps in the host-resolved link when a resolver is provided", async () => {
