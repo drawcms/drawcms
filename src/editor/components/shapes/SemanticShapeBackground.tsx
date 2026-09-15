@@ -5,9 +5,51 @@ interface SemanticShapeBackgroundProps {
   fill: string;
   stroke: string;
   strokeWidth: string;
+  /**
+   * Rendered node width divided by rendered node height. Only shapes that embed
+   * a sigil which must stay square while the card stretches need this; the rest
+   * ignore it. Falls back to 1 (a square node) when the size is not known yet.
+   */
+  aspectRatio?: number;
 }
 
 type VectorEffect = "non-scaling-stroke";
+
+/**
+ * Node shapes are painted into `viewBox="-2 -2 104 104"` with
+ * `preserveAspectRatio="none"`, so one user unit covers a different number of
+ * pixels on each axis as soon as the node stops being square. A nested `<svg>`
+ * does not escape that: its viewport is measured in the parent's already-skewed
+ * units, so `preserveAspectRatio="xMidYMid meet"` keeps a sigil square in *user
+ * units* only — on screen it still stretches with the card.
+ *
+ * Cancelling the stretch takes two steps: pre-distort the sigil's viewport by
+ * the inverse of the node aspect ratio, then let the artwork fill that viewport
+ * with `preserveAspectRatio="none"`. The two distortions undo each other, so the
+ * badge lands on screen as the square it was drawn as. Its side is
+ * `side / 104 * min(nodeWidth, nodeHeight)`, so it still grows with the card —
+ * just proportionally. Insets are scaled the same way, which keeps the gap
+ * between the badge and the card outline equal on both axes instead of wide on
+ * the stretched one.
+ */
+export function squareSigilBox(
+  inset: { x: number; y: number },
+  side: number,
+  aspectRatio: number | undefined,
+): { x: number; y: number; width: number; height: number } {
+  const aspect =
+    typeof aspectRatio === "number" && Number.isFinite(aspectRatio) && aspectRatio > 0
+      ? aspectRatio
+      : 1;
+  const scaleX = Math.min(1, 1 / aspect);
+  const scaleY = Math.min(1, aspect);
+  return {
+    x: inset.x * scaleX,
+    y: inset.y * scaleY,
+    width: side * scaleX,
+    height: side * scaleY,
+  };
+}
 
 function ArchitectureSigil({
   type,
@@ -97,8 +139,15 @@ function ArchitectureSigil({
   }
 }
 
-function renderArchitecture({ type, fill, stroke, strokeWidth }: SemanticShapeBackgroundProps) {
+function renderArchitecture({
+  type,
+  fill,
+  stroke,
+  strokeWidth,
+  aspectRatio,
+}: SemanticShapeBackgroundProps) {
   const vectorEffect: VectorEffect = "non-scaling-stroke";
+  const sigil = squareSigilBox({ x: 5, y: 5 }, 35, aspectRatio);
   return (
     <g data-semantic-shape={type}>
       <rect
@@ -110,16 +159,17 @@ function renderArchitecture({ type, fill, stroke, strokeWidth }: SemanticShapeBa
         strokeWidth={strokeWidth}
         vectorEffect={vectorEffect}
       />
-      {/* The card intentionally stretches to a landscape aspect ratio. Keep
-          its sigil in a nested square viewport so circles, clouds, and server
-          racks retain their geometry instead of stretching with the card. */}
+      {/* The card intentionally stretches to whatever aspect ratio the author
+          resizes it to. Its sigil must not: `squareSigilBox` pre-distorts this
+          viewport so filling it edge to edge lands the badge on screen as a
+          square, keeping circles, clouds, and server racks in proportion. */}
       <svg
-        x="5"
-        y="5"
-        width="35"
-        height="35"
+        x={sigil.x}
+        y={sigil.y}
+        width={sigil.width}
+        height={sigil.height}
         viewBox="0 0 40 40"
-        preserveAspectRatio="xMidYMid meet"
+        preserveAspectRatio="none"
       >
         <rect width="40" height="40" rx="8" fill={stroke} fillOpacity="0.08" />
         <ArchitectureSigil

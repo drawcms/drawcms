@@ -15,6 +15,11 @@ export interface ShapeBackgroundProps {
   stroke?: string;
   strokeWidth?: string;
   borderRadius?: number;
+  /**
+   * Rendered node width / height. Shapes that embed a fixed-proportion sigil use
+   * it to cancel the anisotropic stretch of the surrounding shape viewport.
+   */
+  aspectRatio?: number;
   onClick?: SVGProps<SVGElement>["onClick"];
   onDoubleClick?: SVGProps<SVGElement>["onDoubleClick"];
 }
@@ -39,13 +44,14 @@ export function ShapeBackground({
   stroke = "#4b5563",
   strokeWidth = "2",
   borderRadius,
+  aspectRatio,
   onClick,
   onDoubleClick,
 }: ShapeBackgroundProps) {
   const vectorEffect = "non-scaling-stroke" as const;
 
   const artwork = (() => {
-    const semanticArtwork = renderSemanticShape({ type, fill, stroke, strokeWidth });
+    const semanticArtwork = renderSemanticShape({ type, fill, stroke, strokeWidth, aspectRatio });
     if (semanticArtwork !== undefined) return semanticArtwork;
 
     switch (type) {

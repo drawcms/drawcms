@@ -6,6 +6,7 @@ import { createDocument, deterministicStringify } from "../../document/serialize
 import { parseDocument } from "../../document/schema";
 import type { AppNode } from "../../types";
 import { ShapeBackground } from "./ShapeBackground";
+import { squareSigilBox } from "./SemanticShapeBackground";
 import {
   getSemanticLabelPlacement,
   getSemanticStyleDefaults,
@@ -98,16 +99,56 @@ describe("semantic element catalogue", () => {
   });
 
   it("keeps aspect-sensitive artwork isolated from stretchable card geometry", () => {
+    // A nested viewport does not escape the parent's anisotropic scale, so the
+    // architecture sigil is pre-distorted by the inverse node aspect ratio and
+    // then fills that viewport. Both distortions have to be present to cancel.
+    const wide = render(
+      <svg>
+        <ShapeBackground
+          type="arch-backend"
+          fill="#ffffff"
+          stroke="#475569"
+          strokeWidth="2"
+          aspectRatio={4}
+        />
+      </svg>,
+    );
+    const sigil = wide.container.querySelector('[data-semantic-shape="arch-backend"] svg');
+    expect(sigil?.getAttribute("preserveAspectRatio")).toBe("none");
+    // 35 units tall on the short axis, a quarter of that wide to undo a 4:1 card.
+    expect(sigil?.getAttribute("height")).toBe("35");
+    expect(sigil?.getAttribute("width")).toBe("8.75");
+    // Insets compress with the same factor, so the gap between the badge and the
+    // card outline stays equal on both axes.
+    expect(sigil?.getAttribute("y")).toBe("5");
+    expect(sigil?.getAttribute("x")).toBe("1.25");
+    wide.unmount();
+
+    const tall = render(
+      <svg>
+        <ShapeBackground
+          type="arch-backend"
+          fill="#ffffff"
+          stroke="#475569"
+          strokeWidth="2"
+          aspectRatio={0.5}
+        />
+      </svg>,
+    );
+    const tallSigil = tall.container.querySelector('[data-semantic-shape="arch-backend"] svg');
+    expect(tallSigil?.getAttribute("width")).toBe("35");
+    expect(tallSigil?.getAttribute("height")).toBe("17.5");
+    tall.unmount();
+
     const architecture = render(
       <svg>
         <ShapeBackground type="arch-backend" fill="#ffffff" stroke="#475569" strokeWidth="2" />
       </svg>,
     );
-    expect(
-      architecture.container.querySelector(
-        '[data-semantic-shape="arch-backend"] svg[preserveAspectRatio="xMidYMid meet"]',
-      ),
-    ).not.toBeNull();
+    // With no measured size the sigil falls back to a square badge.
+    const square = architecture.container.querySelector('[data-semantic-shape="arch-backend"] svg');
+    expect(square?.getAttribute("width")).toBe("35");
+    expect(square?.getAttribute("height")).toBe("35");
     architecture.unmount();
 
     const participant = render(
@@ -125,6 +166,26 @@ describe("semantic element catalogue", () => {
         .querySelector('[data-semantic-shape="sequence-participant"] rect')
         ?.getAttribute("height"),
     ).toBe("14");
+  });
+
+  it("scales the architecture sigil to a square regardless of card aspect ratio", () => {
+    // On-screen size of one sigil unit is `box / 104 * nodePx` per axis. Squaring
+    // that is the whole point of the pre-distortion, so assert the invariant
+    // directly rather than trusting the attribute values above.
+    for (const [nodeWidth, nodeHeight] of [
+      [160, 112],
+      [420, 90],
+      [110, 300],
+      [200, 200],
+    ]) {
+      const box = squareSigilBox({ x: 5, y: 5 }, 35, nodeWidth / nodeHeight);
+      const onScreenWidth = (box.width / 104) * nodeWidth;
+      const onScreenHeight = (box.height / 104) * nodeHeight;
+      expect(onScreenWidth).toBeCloseTo(onScreenHeight, 6);
+      expect(onScreenWidth).toBeCloseTo((35 / 104) * Math.min(nodeWidth, nodeHeight), 6);
+      // Same for the inset, so the badge keeps an equal gap to the card outline.
+      expect((box.x / 104) * nodeWidth).toBeCloseTo((box.y / 104) * nodeHeight, 6);
+    }
   });
 
   it("treats semantic frames and stages as real nesting containers", () => {
