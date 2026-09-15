@@ -35,6 +35,7 @@ import type { EditorMenuAction, FileMenuImporter } from "./components/topbar/Fil
 import type { GraphEditOperation } from "./commands/commands";
 import { GROUPABLE_CONTAINER_TYPES } from "./commands/commands";
 import { ALL_CONTAINER_TYPES } from "./constants";
+import { hasOpenOverlay, isTypingTarget, matches, shortcutHint } from "./shortcuts";
 import type { ContextMenuSection } from "./components/CanvasContextMenu";
 import {
   ArrowLeftRight,
@@ -261,6 +262,18 @@ export interface DrawCMSEditorProps {
    * agent browser. Absent (OSS) keeps the plain codex:// page deep link.
    */
   chatGptDeepLinkResolver?: (pageUrl: string) => Promise<string | null>;
+  /**
+   * Store a picked image file somewhere the host controls and return the URL
+   * to reference it by.
+   *
+   * Without this the editor inlines the file as a base64 data URL, which is
+   * fine for a local document but makes a hosted one grow by roughly 4/3 of
+   * the file size — enough for one photo to exceed what a host will accept.
+   * Throwing rejects the pick and surfaces the error message to the user; the
+   * editor never falls back to inlining, because a host that supplies this has
+   * already said it will not store the bytes inline.
+   */
+  onUploadImage?: (file: File) => Promise<string>;
   /** Called after the editor has committed and yielded one animation frame. */
   onReady?: () => void;
   /**
@@ -281,7 +294,7 @@ export function DrawCMSEditor({
   initialEdges,
   initialDocument,
   className,
-  minZoom = 0.5,
+  minZoom,
   plugins,
   onChange,
   onDocumentChange,
@@ -309,6 +322,7 @@ export function DrawCMSEditor({
   paidExportUpgradeFallback,
   webMcp = false,
   chatGptDeepLinkResolver,
+  onUploadImage,
   onReady,
   animationControl,
 }: DrawCMSEditorProps) {
@@ -423,9 +437,21 @@ export function DrawCMSEditor({
     [],
   );
 
+  // Filled in by the canvas once it is mounted; read lazily so a palette click
+  // always sees the current pan and zoom.
+  const viewportCenterRef = useRef<(() => { x: number; y: number } | null) | null>(null);
+  const getViewportCenter = useCallback(() => viewportCenterRef.current?.() ?? null, []);
+  const registerViewportCenter = useCallback(
+    (getCenter: (() => { x: number; y: number } | null) | null) => {
+      viewportCenterRef.current = getCenter;
+    },
+    [],
+  );
+
   const state = useEditorState({
     initialNodes: initialState?.nodes ?? initialNodes,
     initialEdges: initialState?.edges ?? initialEdges,
+    getViewportCenter,
     onChange: (nodes, edges) => {
       onChange?.(nodes, edges);
       const reconciledMotion = reconcileMotionTargets(
@@ -954,7 +980,6 @@ export function DrawCMSEditor({
   // ── Right-click context menu (node / edge / pane) ──
   const buildContextMenuSections = (): ContextMenuSection[] => {
     if (!stepMenu) return [];
-    const mod = /Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘" : "Ctrl+";
     const run = (action: () => void) => () => {
       setStepMenu(null);
       action();
@@ -974,14 +999,17 @@ export function DrawCMSEditor({
               id: "paste",
               label: "Paste",
               icon: ClipboardPaste,
-              shortcut: `${mod}V`,
+              shortcut: shortcutHint("paste"),
               disabled: !state.clipboardHasContent,
-              onSelect: run(state.paste),
+              // Right-click carries a point, so paste lands where the user aimed
+              // rather than beside whatever was originally copied.
+              onSelect: run(() => state.paste(stepMenu.flowPosition)),
             },
             {
               id: "add-node",
               label: "Add element here",
               icon: Plus,
+              shortcut: shortcutHint("addElement"),
               disabled: !stepMenu.flowPosition,
               onSelect: run(() => {
                 if (stepMenu.flowPosition) {
@@ -993,7 +1021,7 @@ export function DrawCMSEditor({
               id: "select-all",
               label: "Select all",
               icon: BoxSelect,
-              shortcut: `${mod}A`,
+              shortcut: shortcutHint("selectAll"),
               disabled: state.nodes.length === 0,
               onSelect: run(state.selectAll),
             },
@@ -1001,6 +1029,7 @@ export function DrawCMSEditor({
               id: "deselect",
               label: "Deselect",
               icon: SquareDashed,
+              shortcut: shortcutHint("deselect"),
               disabled: !hasSelection,
               onSelect: run(state.deselectAll),
             },
@@ -1028,6 +1057,7 @@ export function DrawCMSEditor({
             id: "add-as-step",
             label: "Add as step",
             icon: ListPlus,
+            shortcut: shortcutHint("addAsStep"),
             onSelect: run(() => openCreateStep(stepMenu.targets)),
           },
         ],
@@ -1040,21 +1070,21 @@ export function DrawCMSEditor({
           id: "cut",
           label: "Cut",
           icon: Scissors,
-          shortcut: `${mod}X`,
+          shortcut: shortcutHint("cut"),
           onSelect: run(state.cutSelection),
         },
         {
           id: "copy",
           label: "Copy",
           icon: Copy,
-          shortcut: `${mod}C`,
+          shortcut: shortcutHint("copy"),
           onSelect: run(state.copySelection),
         },
         {
           id: "paste",
           label: "Paste",
           icon: ClipboardPaste,
-          shortcut: `${mod}V`,
+          shortcut: shortcutHint("paste"),
           disabled: !state.clipboardHasContent,
           onSelect: run(state.paste),
         },
@@ -1062,14 +1092,14 @@ export function DrawCMSEditor({
           id: "duplicate",
           label: "Duplicate",
           icon: CopyPlus,
-          shortcut: `${mod}D`,
+          shortcut: shortcutHint("duplicate"),
           onSelect: run(state.duplicateSelection),
         },
         {
           id: "delete",
           label: "Delete",
           icon: Trash2,
-          shortcut: "⌫",
+          shortcut: shortcutHint("delete"),
           danger: true,
           onSelect: run(state.deleteSelection),
         },
@@ -1083,6 +1113,7 @@ export function DrawCMSEditor({
             id: "replace",
             label: "Replace…",
             icon: Replace,
+            shortcut: shortcutHint("replace"),
             disabled: selectedNodes.length !== 1 || allLocked,
             onSelect: run(() => {
               const node = selectedNodes[0];
@@ -1099,6 +1130,7 @@ export function DrawCMSEditor({
             id: "group",
             label: "Group",
             icon: Group,
+            shortcut: shortcutHint("group"),
             disabled: groupableCount < 2,
             onSelect: run(state.groupSelection),
           },
@@ -1106,6 +1138,7 @@ export function DrawCMSEditor({
             id: "ungroup",
             label: "Ungroup",
             icon: Ungroup,
+            shortcut: shortcutHint("ungroup"),
             disabled: ungroupableCount === 0,
             onSelect: run(state.ungroupSelection),
           },
@@ -1113,6 +1146,7 @@ export function DrawCMSEditor({
             id: "toggle-lock",
             label: allLocked ? "Unlock" : "Lock",
             icon: allLocked ? LockOpen : Lock,
+            shortcut: shortcutHint("toggleLock"),
             disabled: selectedNodes.length === 0,
             onSelect: run(state.toggleLockSelection),
           },
@@ -1127,6 +1161,7 @@ export function DrawCMSEditor({
             id: "reverse",
             label: "Reverse direction",
             icon: ArrowLeftRight,
+            shortcut: shortcutHint("reverseEdge"),
             disabled: !state.selectedEdgeId,
             onSelect: run(state.reverseSelectedEdge),
           },
@@ -1137,6 +1172,39 @@ export function DrawCMSEditor({
   };
 
   const contextMenuSections = stepMenu ? buildContextMenuSections() : [];
+
+  // Two context-menu actions need editor-level state the state hook does not own
+  // (the replace dialog and the active story scene), so their bindings live here
+  // rather than in `useEditorState`'s handler.
+  const activeSceneId = activeStoryScene?.id ?? null;
+  useEffect(() => {
+    if (isPresentation) return;
+    const handler = (event: KeyboardEvent) => {
+      if (isTypingTarget(event) || hasOpenOverlay()) return;
+      const selectedNodes = state.nodes.filter((node) => node.selected);
+      if (matches(event, "replace")) {
+        const node = selectedNodes[0];
+        if (!node || selectedNodes.length !== 1 || node.data?.locked === true) return;
+        event.preventDefault();
+        setReplaceDialog({ nodeId: node.id, type: String(node.data.type) });
+        return;
+      }
+      if (matches(event, "addAsStep")) {
+        if (!activeSceneId) return;
+        const targets: StoryTarget[] = [
+          ...selectedNodes.map((node) => ({ targetId: node.id, targetKind: "node" as const })),
+          ...state.edges
+            .filter((edge) => edge.selected)
+            .map((edge) => ({ targetId: edge.id, targetKind: "edge" as const })),
+        ];
+        if (targets.length === 0) return;
+        event.preventDefault();
+        setStepDialog({ mode: "create", sceneId: activeSceneId, targets });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isPresentation, activeSceneId, state.nodes, state.edges]);
 
   return (
     <div
@@ -1224,6 +1292,7 @@ export function DrawCMSEditor({
                   webMcp={!isPresentation && webMcp}
                   chatGptDeepLinkResolver={chatGptDeepLinkResolver}
                   minZoom={minZoom}
+                  registerViewportCenter={registerViewportCenter}
                   activeStoryTargets={isPresentation ? activePresentationTargets : undefined}
                 />
               </AnimationStateContext.Provider>
@@ -1380,6 +1449,7 @@ export function DrawCMSEditor({
                     naturalW={state.currentNode?.data?._naturalW as number | undefined}
                     naturalH={state.currentNode?.data?._naturalH as number | undefined}
                     onStyleChange={state.handleStyleChange}
+                    onUploadImage={onUploadImage}
                     motionSpeed={
                       (state.currentNode?.data?.motionSpeed ??
                         state.currentEdge?.data?.motionSpeed ??

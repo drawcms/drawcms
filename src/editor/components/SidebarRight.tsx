@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { EdgeRoutingMode } from "../types";
 import { SEMANTIC_CONTAINER_TYPES } from "./shapes/semantic-elements";
+import { MAX_SHAPE_FONT_SIZE, MAX_TEXT_FONT_SIZE, MIN_FONT_SIZE } from "../constants";
 
 interface TableRow {
   id: string;
@@ -75,6 +76,11 @@ interface SidebarRightProps {
   // Image props
   imageUrl?: string;
   originalImageUrl?: string;
+  /**
+   * Hand a picked image file to the host and get back a URL to store.
+   * Without it the file is inlined as a base64 data URL.
+   */
+  onUploadImage?: (file: File) => Promise<string>;
   cropX?: number;
   cropY?: number;
   cropW?: number;
@@ -134,6 +140,7 @@ export function SidebarRight({
   headerColor,
   imageUrl,
   originalImageUrl,
+  onUploadImage,
   cropW,
   cropH,
   onStyleChange,
@@ -173,6 +180,51 @@ export function SidebarRight({
 
   const updateStyle = (key: string, value: unknown) => {
     onStyleChange?.({ [key]: value });
+  };
+
+  /**
+   * Getting a picked file into the node.
+   *
+   * Inlining the file as a base64 data URL is the fallback, not the goal: a
+   * modest photo becomes a megabyte of string sitting inside the document, which
+   * a host that validates or stores documents will reject. When the host supplies
+   * `onUploadImage` the bytes go to its own storage and only the returned URL is
+   * kept, so the document stays small whatever the image weighs.
+   */
+  const [imageUploadState, setImageUploadState] = useState<
+    { status: "idle" | "uploading" } | { status: "error"; message: string }
+  >({ status: "idle" });
+
+  const handleImageFile = async (file: File) => {
+    if (!onUploadImage) {
+      const dataUrl = await new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      });
+      if (dataUrl === null) {
+        setImageUploadState({ status: "error", message: "That file could not be read." });
+        return;
+      }
+      setImageUploadState({ status: "idle" });
+      updateStyle("imageUrl", dataUrl);
+      return;
+    }
+
+    setImageUploadState({ status: "uploading" });
+    try {
+      const url = await onUploadImage(file);
+      setImageUploadState({ status: "idle" });
+      updateStyle("imageUrl", url);
+    } catch (error) {
+      // Deliberately no data-URL fallback: silently inlining the image would
+      // produce a document the host has already said it cannot store.
+      setImageUploadState({
+        status: "error",
+        message: error instanceof Error ? error.message : "The image could not be uploaded.",
+      });
+    }
   };
 
   // --- Table helpers ---
@@ -496,18 +548,23 @@ export function SidebarRight({
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                updateStyle("imageUrl", reader.result as string);
-                              };
-                              reader.readAsDataURL(file);
+                            disabled={imageUploadState.status === "uploading"}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              // Let the same file be picked again after a failure.
+                              event.target.value = "";
+                              if (file) void handleImageFile(file);
                             }}
                           />
-                          Upload from file
+                          {imageUploadState.status === "uploading"
+                            ? "Uploading…"
+                            : "Upload from file"}
                         </label>
+                        {imageUploadState.status === "error" && (
+                          <p role="alert" className="text-[11px] font-medium text-danger">
+                            {imageUploadState.message}
+                          </p>
+                        )}
                         {imageUrl && (
                           <div className="border border-border/60 rounded-lg overflow-hidden">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -635,8 +692,8 @@ export function SidebarRight({
                   </div>
                   <input
                     type="range"
-                    min="8"
-                    max={isText ? "96" : "48"}
+                    min={MIN_FONT_SIZE}
+                    max={isText ? MAX_TEXT_FONT_SIZE : MAX_SHAPE_FONT_SIZE}
                     step="1"
                     value={fontSize}
                     onChange={(e) => updateStyle("fontSize", parseInt(e.target.value))}
