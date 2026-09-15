@@ -27,6 +27,7 @@ import {
   deleteSelectionCommand,
   groupNodesInSnapshot,
   lockNodesCommand,
+  nextFreePosition,
   pasteCommand,
   reparentOnDragStop,
   replaceNodeTypeCommand,
@@ -36,14 +37,39 @@ import {
   type EditorSnapshot,
   type GraphEditOperation,
 } from "../commands/commands";
-import { getNodeSize, CONTAINER_TYPES, SWIMLANE_TYPES } from "../constants";
+import {
+  getNodeSize,
+  CONTAINER_TYPES,
+  DUPLICATE_OFFSET,
+  MAX_SHAPE_FONT_SIZE,
+  MAX_TEXT_FONT_SIZE,
+  nextFontSize,
+  PASTE_OFFSET,
+  SWIMLANE_TYPES,
+} from "../constants";
 import { defaultNodeData, nodeHasAutoHeight, nodeRendererType, nodeZIndex } from "../node-factory";
 import { createSequenceEdge, nextSequenceRow, SEQUENCE_LIFELINE_TYPES } from "../sequence-edges";
+import {
+  hasOpenOverlay,
+  isTypingTarget,
+  matches,
+  matchesShortcut,
+  REDO_ALTERNATE,
+} from "../shortcuts";
 
 export interface UseEditorStateOptions {
   initialNodes?: AppNode[];
   initialEdges?: AppEdge[];
   onChange?: (nodes: AppNode[], edges: AppEdge[]) => void;
+  /**
+   * Centre of the visible canvas in flow coordinates, if the canvas is mounted.
+   *
+   * Elements added without an explicit position land here. Only the canvas knows
+   * the current pan and zoom, so it supplies this; without it the hook falls back
+   * to a fixed coordinate, which is what made a palette click drop an element
+   * off-screen once the canvas had been panned away.
+   */
+  getViewportCenter?: () => { x: number; y: number } | null;
 }
 
 /**
@@ -234,6 +260,7 @@ const REPLACE_STYLE_KEYS = [
 ] as const;
 
 export function useEditorState(options?: UseEditorStateOptions) {
+  const getViewportCenter = options?.getViewportCenter;
   const [isGlobalAnimating, setIsGlobalAnimating] = useState(false);
   const [isPreviewingSelected, setIsPreviewingSelected] = useState(false);
   const [showPresets, setShowPresets] = useState(false);
@@ -328,12 +355,15 @@ export function useEditorState(options?: UseEditorStateOptions) {
   // ── Clipboard (cut / copy / paste) — routed through the command boundary ──
   const clipboardRef = useRef<ClipboardPayload | null>(null);
   const [clipboardHasContent, setClipboardHasContent] = useState(false);
+  /** Repeat count for the current clipboard, so successive pastes fan out. */
+  const pasteCountRef = useRef(0);
 
   const copySelection = useCallback(() => {
     clipboardRef.current = copyFromSnapshot(currentSnapshot(), {
       nodeId: selectedNodeId,
       edgeId: selectedEdgeId,
     });
+    pasteCountRef.current = 0;
     setClipboardHasContent(Boolean(clipboardRef.current && clipboardRef.current.nodes.length > 0));
   }, [currentSnapshot, selectedNodeId, selectedEdgeId]);
 
@@ -350,17 +380,26 @@ export function useEditorState(options?: UseEditorStateOptions) {
     setSelectedEdgeId(null);
   }, [copySelection, pushHistory, applySnapshot, currentSnapshot, selectedNodeId, selectedEdgeId]);
 
-  const paste = useCallback(() => {
-    const clip = clipboardRef.current;
-    if (!clip || clip.nodes.length === 0) return;
-    pushHistory();
-    const before = currentSnapshot();
-    const next = pasteCommand(clip).apply(before);
-    if (next === before) return;
-    applySnapshot(next);
-    const firstPasted = next.nodes.find((n) => n.selected);
-    if (firstPasted) setSelectedNodeId(firstPasted.id);
-  }, [pushHistory, applySnapshot, currentSnapshot]);
+  const paste = useCallback(
+    (at?: { x: number; y: number }) => {
+      const clip = clipboardRef.current;
+      if (!clip || clip.nodes.length === 0) return;
+      pushHistory();
+      const before = currentSnapshot();
+      // Each repeat of the same clipboard steps one offset further out, so
+      // pasting three times leaves three visible copies instead of a stack.
+      pasteCountRef.current = at ? 0 : pasteCountRef.current + 1;
+      const next = pasteCommand(clip, {
+        at,
+        offset: PASTE_OFFSET * pasteCountRef.current,
+      }).apply(before);
+      if (next === before) return;
+      applySnapshot(next);
+      const firstPasted = next.nodes.find((n) => n.selected);
+      if (firstPasted) setSelectedNodeId(firstPasted.id);
+    },
+    [pushHistory, applySnapshot, currentSnapshot],
+  );
 
   // ── Context-menu operations (duplicate / z-order / group / lock / style) ──
   const selectedIdsForOperations = useCallback(() => {
@@ -375,7 +414,7 @@ export function useEditorState(options?: UseEditorStateOptions) {
       const clip = copyFromSnapshot(before, { nodeId: selectedNodeId });
       if (clip.nodes.length === 0) return;
       pushHistory();
-      const next = pasteCommand(clip, { offset: 24 }).apply(before);
+      const next = pasteCommand(clip, { offset: DUPLICATE_OFFSET }).apply(before);
       if (next === before) return;
       applySnapshot(next);
       const firstPasted = next.nodes.find((n) => n.selected);
@@ -475,6 +514,37 @@ export function useEditorState(options?: UseEditorStateOptions) {
   }, []);
 
   /**
+   * Step the font size of every selected node up or down the {@link FONT_SIZE_STEPS}
+   * ladder. A ladder rather than ±1 so a keypress is a visible change at every
+   * size, matching how the size menus in word processors behave. Locked nodes are
+   * left alone, and each node is clamped to the maximum its own type allows so a
+   * mixed selection cannot push a shape label past what its box can show.
+   */
+  const adjustFontSize = useCallback(
+    (direction: 1 | -1) => {
+      const ids = new Set(selectedIdsForOperations());
+      if (ids.size === 0) return;
+      const targets = nodesRef.current.filter(
+        (node) => ids.has(node.id) && node.data.locked !== true,
+      );
+      if (targets.length === 0) return;
+      pushHistory();
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (!targets.some((target) => target.id === node.id)) return node;
+          const isText = node.data.type === "text";
+          const current = Number(node.data.fontSize) || (isText ? 20 : 14);
+          const max = isText ? MAX_TEXT_FONT_SIZE : MAX_SHAPE_FONT_SIZE;
+          const next = nextFontSize(current, direction, max);
+          if (next === current) return node;
+          return { ...node, data: { ...node.data, fontSize: next } };
+        }),
+      );
+    },
+    [pushHistory, selectedIdsForOperations],
+  );
+
+  /**
    * Swap a node's element type in place (context menu "Replace"): the node
    * keeps its id — position, container membership, selection, and connected
    * edges survive — while data resets to the new type's defaults and generic
@@ -512,44 +582,45 @@ export function useEditorState(options?: UseEditorStateOptions) {
   }, []);
 
   // ── Keyboard shortcuts ──
+  // Bindings and their advertised labels both come from `shortcuts.ts`, so the
+  // hints in the right-click menu cannot fall out of step with what actually fires.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (isTypingTarget(e)) return;
+      const run = (action: () => void) => {
+        e.preventDefault();
+        action();
+      };
 
-      const mod = e.metaKey || e.ctrlKey;
-      if (e.key === "Escape" && activeSequenceEdgeTool) {
-        e.preventDefault();
-        cancelSequenceEdgeTool();
-      } else if (mod && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      } else if (mod && e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        redo();
-      } else if (mod && e.key === "y") {
-        e.preventDefault();
-        redo();
-      } else if (mod && e.key === "c") {
-        e.preventDefault();
-        copySelection();
-      } else if (mod && e.key === "x") {
-        e.preventDefault();
-        cutSelection();
-      } else if (mod && e.key === "v") {
-        e.preventDefault();
-        paste();
-      } else if (mod && e.key === "d") {
-        e.preventDefault();
-        duplicateSelection();
-      } else if (mod && e.key === "a") {
-        e.preventDefault();
-        selectAll();
-      } else if ((e.key === "Delete" || e.key === "Backspace") && !mod) {
-        if (selectedNodeId || selectedEdgeId) {
-          e.preventDefault();
-          deleteSelection();
-        }
+      // Escape is overloaded: it cancels an armed tool first, then defers to any
+      // open overlay, and only clears the selection when nothing else wants it.
+      if (matches(e, "deselect")) {
+        if (activeSequenceEdgeTool) return run(cancelSequenceEdgeTool);
+        if (hasOpenOverlay()) return;
+        if (selectedNodeId || selectedEdgeId) return run(deselectAll);
+        return;
+      }
+
+      if (matches(e, "redo") || matchesShortcut(e, REDO_ALTERNATE)) return run(redo);
+      if (matches(e, "undo")) return run(undo);
+      if (matches(e, "copy")) return run(copySelection);
+      if (matches(e, "cut")) return run(cutSelection);
+      if (matches(e, "paste")) return run(() => paste());
+      if (matches(e, "duplicate")) return run(duplicateSelection);
+      if (matches(e, "selectAll")) return run(selectAll);
+      if (matches(e, "group")) return run(groupSelection);
+      if (matches(e, "ungroup")) return run(ungroupSelection);
+      if (matches(e, "toggleLock")) return run(toggleLockSelection);
+      if (matches(e, "fontSizeUp")) return run(() => adjustFontSize(1));
+      if (matches(e, "fontSizeDown")) return run(() => adjustFontSize(-1));
+      if (matches(e, "toggleElementsPanel"))
+        return run(() => setShowLeftPanel((current) => !current));
+      if (matches(e, "reverseEdge")) {
+        if (selectedEdgeId) return run(reverseSelectedEdge);
+        return;
+      }
+      if (matches(e, "delete")) {
+        if (selectedNodeId || selectedEdgeId) return run(deleteSelection);
       }
     };
     window.addEventListener("keydown", handler);
@@ -562,10 +633,13 @@ export function useEditorState(options?: UseEditorStateOptions) {
     paste,
     duplicateSelection,
     selectAll,
+    deselectAll,
     deleteSelection,
-    pushHistory,
-    applySnapshot,
-    currentSnapshot,
+    groupSelection,
+    ungroupSelection,
+    toggleLockSelection,
+    reverseSelectedEdge,
+    adjustFontSize,
     selectedNodeId,
     selectedEdgeId,
     activeSequenceEdgeTool,
@@ -668,6 +742,22 @@ export function useEditorState(options?: UseEditorStateOptions) {
     [activeSequenceEdgeTool, commitSequenceEdge],
   );
 
+  /**
+   * Where an element goes when the caller does not say: centred on the visible
+   * canvas, nudged diagonally if that corner is already taken. Falls back to a
+   * fixed coordinate only when the canvas has not reported a viewport yet.
+   */
+  const placeInView = useCallback(
+    (nodes: AppNode[], size: { width: number; height: number }) => {
+      const center = getViewportCenter?.() ?? null;
+      const anchor = center
+        ? { x: Math.round(center.x - size.width / 2), y: Math.round(center.y - size.height / 2) }
+        : { x: 300, y: 200 };
+      return nextFreePosition(nodes, anchor);
+    },
+    [getViewportCenter],
+  );
+
   const handleAddNode = useCallback(
     (type: string, title: string, position?: { x: number; y: number }, parentId?: string) => {
       if (isSequenceEdgeType(type)) {
@@ -694,11 +784,10 @@ export function useEditorState(options?: UseEditorStateOptions) {
       setNodes((nds) => {
         const sequenceLayout = position ? null : getSequenceInsertionLayout(type, nds, size);
         const resolvedSize = sequenceLayout?.size ?? size;
-        const resolvedPosition = position ??
-          sequenceLayout?.position ?? {
-            x: 300 + Math.random() * 50,
-            y: 200 + Math.random() * 50,
-          };
+        // Sequence shapes keep their own lifeline placement; everything else
+        // appears where the author is looking.
+        const resolvedPosition =
+          position ?? sequenceLayout?.position ?? placeInView(nds, resolvedSize);
         const newNode: AppNode = {
           id: nodeId,
           position: resolvedPosition,
@@ -719,7 +808,7 @@ export function useEditorState(options?: UseEditorStateOptions) {
       setSelectedNodeId(nodeId);
       setSelectedEdgeId(null);
     },
-    [pushHistory],
+    [pushHistory, placeInView],
   );
 
   const handleAddIcon = useCallback(
@@ -731,7 +820,7 @@ export function useEditorState(options?: UseEditorStateOptions) {
       setNodes((nds) => {
         const newNode: AppNode = {
           id: nodeId,
-          position: { x: 300 + Math.random() * 50, y: 200 + Math.random() * 50 },
+          position: placeInView(nds, size),
           data: {
             label: input.label,
             type: "icon",
@@ -748,7 +837,7 @@ export function useEditorState(options?: UseEditorStateOptions) {
       setSelectedNodeId(nodeId);
       setSelectedEdgeId(null);
     },
-    [pushHistory],
+    [pushHistory, placeInView],
   );
   const handleSelectPreset = useCallback(
     (preset: string) => {
@@ -1218,6 +1307,7 @@ export function useEditorState(options?: UseEditorStateOptions) {
     paste,
     selectAll,
     deselectAll,
+    adjustFontSize,
     clipboardHasContent,
 
     // Derived

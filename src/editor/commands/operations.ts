@@ -51,11 +51,37 @@ export function deleteEdgeFromSnapshot(state: EditorSnapshot, edgeId: string): E
 }
 
 /**
+ * Absolute canvas position of a node, walking up through container parents.
+ * React Flow stores a child's `position` relative to its parent, so any code
+ * that moves a node out of its container has to rebase it first.
+ */
+function absolutePosition(nodes: readonly AppNode[], node: AppNode): { x: number; y: number } {
+  let { x, y } = node.position;
+  const seen = new Set<string>([node.id]);
+  let parentId = node.parentId;
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = nodes.find((candidate) => candidate.id === parentId);
+    if (!parent) break;
+    x += parent.position.x;
+    y += parent.position.y;
+    parentId = parent.parentId;
+  }
+  return { x, y };
+}
+
+/**
  * Copy includes the selection plus every container descendant, so a pasted
  * group stays intact. When a single edge is selected the edge is copied on
  * its own (it is reattached to pasted nodes when possible). Multi-selection
  * is expressed with `nodeIds` / `edgeIds`; the singular fields select exactly
  * one element and remain the primary public-API path.
+ *
+ * Nodes whose container is *not* part of the copy are rebased to absolute
+ * coordinates and detached. Without this a node copied out of a container kept
+ * its parent-relative position but lost its `parentId` on paste, so it landed
+ * at those relative coordinates read as absolute — far away from the element it
+ * was copied from rather than beside it.
  */
 export function copyFromSnapshot(
   state: EditorSnapshot,
@@ -72,7 +98,14 @@ export function copyFromSnapshot(
     const idSet = (edge: AppEdge) => ids.has(edge.source) && ids.has(edge.target);
     const edgeIds = new Set(selection.edgeIds ?? []);
     return {
-      nodes: state.nodes.filter((node) => ids.has(node.id)),
+      nodes: state.nodes
+        .filter((node) => ids.has(node.id))
+        .map((node) => {
+          if (!node.parentId || ids.has(node.parentId)) return node;
+          const detached: AppNode = { ...node, position: absolutePosition(state.nodes, node) };
+          delete detached.parentId;
+          return detached;
+        }),
       edges: state.edges.filter((edge) => idSet(edge) || edgeIds.has(edge.id)),
     };
   }
@@ -95,6 +128,41 @@ function nodeExtent(node: AppNode): { width: number; height: number } {
     width: Number(node.style?.width ?? measured?.width ?? 160),
     height: Number(node.style?.height ?? measured?.height ?? 80),
   };
+}
+
+/** Diagonal step used when a new element would land exactly on an existing one. */
+const CASCADE_STEP = 28;
+
+/**
+ * First spot at or after `anchor` whose corner is not already occupied.
+ *
+ * New elements are placed at the centre of the visible canvas, so clicking
+ * several palette entries in a row would drop them all on the same coordinate
+ * and hide every one but the last. This steps diagonally away instead, the way a
+ * window manager cascades new windows: each element keeps a visible corner to
+ * grab, and the walk is short enough that nothing escapes the viewport.
+ *
+ * Only top-level nodes count as occupied — a child's position is relative to its
+ * container, so it is not comparable to a canvas-space anchor.
+ */
+export function nextFreePosition(
+  nodes: readonly AppNode[],
+  anchor: { x: number; y: number },
+  maxSteps = 12,
+): { x: number; y: number } {
+  const corners = nodes.filter((node) => !node.parentId).map((node) => node.position);
+  const candidate = { ...anchor };
+  for (let step = 0; step < maxSteps; step++) {
+    const taken = corners.some(
+      (corner) =>
+        Math.abs(corner.x - candidate.x) < CASCADE_STEP &&
+        Math.abs(corner.y - candidate.y) < CASCADE_STEP,
+    );
+    if (!taken) return candidate;
+    candidate.x += CASCADE_STEP;
+    candidate.y += CASCADE_STEP;
+  }
+  return candidate;
 }
 
 /**
@@ -254,11 +322,20 @@ export function replaceNodeInSnapshot(
 export interface PasteOptions {
   offset?: number;
   idGenerator?: () => string;
+  /**
+   * Place the clip so the top-left of its bounding box lands here, instead of
+   * offsetting from where it was copied. Used for paste-at-pointer.
+   */
+  at?: { x: number; y: number };
 }
 
 /**
  * Paste remaps every id (nodes, container parentIds, edge endpoints) so a
  * paste can never collide with live or previously pasted elements.
+ *
+ * Only root nodes are repositioned. A container's children are stored relative
+ * to it, so translating them as well would shift them a second time *inside* an
+ * already-moved parent and pull a pasted group apart.
  */
 export function createPaste(
   clip: ClipboardPayload,
@@ -276,10 +353,25 @@ export function createPaste(
     return id;
   };
 
+  const clipIds = new Set(clip.nodes.map((node) => node.id));
+  const isRoot = (node: AppNode) => !node.parentId || !clipIds.has(node.parentId);
+  const roots = clip.nodes.filter(isRoot);
+  const translation = (() => {
+    if (!options?.at || roots.length === 0) return { x: offset, y: offset };
+    const left = Math.min(...roots.map((node) => node.position.x));
+    const top = Math.min(...roots.map((node) => node.position.y));
+    return { x: options.at.x - left, y: options.at.y - top };
+  })();
+
   const nodes = clip.nodes.map((node) => {
     const id = freshId();
     idMap.set(node.id, id);
-    return { ...node, id, position: { x: node.position.x + offset, y: node.position.y + offset } };
+    if (!isRoot(node)) return { ...node, id };
+    return {
+      ...node,
+      id,
+      position: { x: node.position.x + translation.x, y: node.position.y + translation.y },
+    };
   });
   // Second pass: parentId remapping needs the complete map.
   const remapped = nodes.map((node) => ({

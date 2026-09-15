@@ -11,6 +11,7 @@ import {
   deleteSelectionCommand,
   groupSelectionCommand,
   lockNodesCommand,
+  nextFreePosition,
   pasteCommand,
   reparentOnDragStopCommand,
   replaceNodeTypeCommand,
@@ -147,13 +148,56 @@ describe("copy/paste with ID remapping", () => {
     const pastedContainer = pasted.nodes.find((n) => n.data.type === "group")!;
     const pastedChild = pasted.nodes.find((n) => n.data.type === "rect")!;
     expect(pastedChild.parentId).toBe(pastedContainer.id);
-    expect(pastedChild.position).toEqual({ x: 60, y: 70 });
+    // Only the container moves. A child's position is relative to its parent, so
+    // offsetting it too would shift it a second time and pull the group apart.
+    expect(pastedContainer.position).toEqual({ x: 40, y: 40 });
+    expect(pastedChild.position).toEqual({ x: 20, y: 30 });
     expect(pasted.edges).toEqual([]); // the only edge left the copied set
 
     const applied = pasteCommand(clip, { idGenerator: () => `q${counter++}` }).apply(state);
     expect(applied.nodes).toHaveLength(5);
     // Originals are deselected, pasted nodes selected.
     expect(applied.nodes.filter((n) => n.selected).map((n) => n.id)).toEqual(["q2", "q3"]);
+  });
+
+  it("rebases a node copied out of its container to absolute coordinates", () => {
+    const state: EditorSnapshot = {
+      nodes: [container("g", 800, 600), rect("child", 20, 30, { parentId: "g" })],
+      edges: [],
+    };
+
+    // Copying only the child leaves it with no parent to be relative to.
+    const clip = copyFromSnapshot(state, { nodeId: "child", edgeId: null });
+    expect(clip.nodes).toHaveLength(1);
+    expect(clip.nodes[0].parentId).toBeUndefined();
+    expect(clip.nodes[0].position).toEqual({ x: 820, y: 630 });
+
+    const pasted = createPaste(clip, new Set(state.nodes.map((n) => n.id)), {
+      idGenerator: () => "p0",
+    });
+    // Lands beside the element it was copied from, not at the container-relative
+    // coordinates read as absolute (which would put it near the canvas origin).
+    expect(pasted.nodes[0].position).toEqual({ x: 860, y: 670 });
+  });
+
+  it("places a paste at an explicit point, anchored on the selection's top-left", () => {
+    const state: EditorSnapshot = {
+      nodes: [rect("a", 100, 100), rect("b", 300, 180)],
+      edges: [],
+    };
+    const clip = copyFromSnapshot(state, { nodeIds: ["a", "b"] });
+
+    let counter = 0;
+    const pasted = createPaste(clip, new Set(state.nodes.map((n) => n.id)), {
+      idGenerator: () => `p${counter++}`,
+      at: { x: 1000, y: 500 },
+    });
+
+    // The group keeps its shape; its bounding box corner moves to the point.
+    expect(pasted.nodes.map((n) => n.position)).toEqual([
+      { x: 1000, y: 500 },
+      { x: 1200, y: 580 },
+    ]);
   });
 
   it("pastes an edge-only copy when both endpoints survive in later content", () => {
@@ -427,5 +471,37 @@ describe("document serialization of command output", () => {
     const restored = parseDocument(JSON.parse(deterministicStringify(doc)));
     expect(restored.nodes).toHaveLength(2);
     expect(restored.edges).toHaveLength(1);
+  });
+});
+
+describe("nextFreePosition", () => {
+  it("keeps the anchor when nothing occupies that corner", () => {
+    const nodes = [rect("a", 900, 900)];
+    expect(nextFreePosition(nodes, { x: 100, y: 100 })).toEqual({ x: 100, y: 100 });
+  });
+
+  it("cascades diagonally off an occupied corner", () => {
+    const nodes = [rect("a", 100, 100)];
+    expect(nextFreePosition(nodes, { x: 100, y: 100 })).toEqual({ x: 128, y: 128 });
+  });
+
+  it("keeps stepping past a run of cascaded elements", () => {
+    const nodes = [rect("a", 100, 100), rect("b", 128, 128), rect("c", 156, 156)];
+    expect(nextFreePosition(nodes, { x: 100, y: 100 })).toEqual({ x: 184, y: 184 });
+  });
+
+  it("ignores container children, whose positions are parent-relative", () => {
+    const nodes = [container("g", 800, 600), rect("child", 100, 100, { parentId: "g" })];
+    // The child's (100,100) is relative to the group, so it does not occupy the
+    // canvas-space anchor of the same numbers.
+    expect(nextFreePosition(nodes, { x: 100, y: 100 })).toEqual({ x: 100, y: 100 });
+  });
+
+  it("gives up rather than walking away forever", () => {
+    const nodes = Array.from({ length: 40 }, (_, index) =>
+      rect(`n${index}`, 100 + index * 28, 100 + index * 28),
+    );
+    const placed = nextFreePosition(nodes, { x: 100, y: 100 }, 3);
+    expect(placed).toEqual({ x: 184, y: 184 });
   });
 });

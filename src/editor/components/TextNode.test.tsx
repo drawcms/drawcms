@@ -130,3 +130,35 @@ describe("TextNode", () => {
     });
   });
 });
+
+describe("TextNode edit-on-create focus", () => {
+  const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+  it("puts the caret in the editor when created mid-edit", async () => {
+    renderTextNode({ label: "", type: "text", textEditOnMount: true });
+    const editor = screen.getByLabelText("Edit text element");
+    await nextFrame();
+
+    // Focus is re-asserted a frame after mount, so it survives React Flow
+    // selecting the new node and a closing palette flyout restoring its trigger.
+    expect(document.activeElement).toBe(editor);
+  });
+
+  it("puts the caret after existing text rather than selecting it", async () => {
+    renderTextNode({ label: "Hello", type: "text", textEditOnMount: true });
+    const editor = screen.getByLabelText("Edit text element") as HTMLTextAreaElement;
+    await nextFrame();
+
+    expect(editor.selectionStart).toBe(5);
+    expect(editor.selectionEnd).toBe(5);
+  });
+
+  it("does not grab focus for a text element that was already on the canvas", async () => {
+    renderTextNode({ label: "Existing", type: "text" });
+    const before = document.activeElement;
+    await nextFrame();
+
+    expect(screen.queryByLabelText("Edit text element")).toBeNull();
+    expect(document.activeElement).toBe(before);
+  });
+});

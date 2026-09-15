@@ -547,3 +547,244 @@ describe("sequence message edges", () => {
     });
   });
 });
+
+describe("keyboard shortcuts", () => {
+  const press = async (key: string, modifiers: Partial<KeyboardEventInit> = {}) => {
+    window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...modifiers }));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  };
+
+  const selected = (node: Partial<AppNode> & { id: string }): AppNode =>
+    ({
+      position: { x: 0, y: 0 },
+      data: { label: "N", type: "rect" },
+      selected: true,
+      ...node,
+    }) as AppNode;
+
+  it("steps the font size of every selected node along the ladder", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [
+          selected({ id: "a", data: { label: "A", type: "rect", fontSize: 14 } }),
+          selected({ id: "b", data: { label: "B", type: "text", fontSize: 20 } }),
+          selected({ id: "c", data: { label: "C", type: "rect" }, selected: false }),
+        ],
+        initialEdges: [],
+      }),
+    );
+
+    await act(() => press(".", { metaKey: true, shiftKey: true }));
+    const sizes = () =>
+      Object.fromEntries(result.current.nodes.map((n) => [n.id, n.data.fontSize]));
+    expect(sizes()).toEqual({ a: 16, b: 24, c: undefined });
+
+    await act(() => press(",", { metaKey: true, shiftKey: true }));
+    await act(() => press(",", { metaKey: true, shiftKey: true }));
+    // Unselected nodes are never touched.
+    expect(sizes()).toEqual({ a: 12, b: 18, c: undefined });
+  });
+
+  it("clamps each node to the maximum its own element type allows", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [
+          selected({ id: "shape", data: { label: "S", type: "rect", fontSize: 48 } }),
+          selected({ id: "text", data: { label: "T", type: "text", fontSize: 96 } }),
+        ],
+        initialEdges: [],
+      }),
+    );
+
+    await act(() => press(">", { metaKey: true, shiftKey: true }));
+    expect(result.current.nodes.map((n) => n.data.fontSize)).toEqual([48, 96]);
+  });
+
+  it("leaves locked nodes alone", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [
+          selected({ id: "a", data: { label: "A", type: "rect", fontSize: 14, locked: true } }),
+        ],
+        initialEdges: [],
+      }),
+    );
+
+    await act(() => press(".", { metaKey: true, shiftKey: true }));
+    expect(result.current.nodes[0].data.fontSize).toBe(14);
+  });
+
+  it("fans repeated pastes out instead of stacking them on one spot", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [selected({ id: "a", position: { x: 100, y: 100 } })],
+        initialEdges: [],
+      }),
+    );
+    act(() => result.current.setSelectedNodeId("a"));
+    act(() => result.current.copySelection());
+
+    await act(() => press("v", { metaKey: true }));
+    await act(() => press("v", { metaKey: true }));
+    await act(() => press("v", { metaKey: true }));
+
+    expect(result.current.nodes.map((n) => n.position)).toEqual([
+      { x: 100, y: 100 },
+      { x: 140, y: 140 },
+      { x: 180, y: 180 },
+      { x: 220, y: 220 },
+    ]);
+  });
+
+  it("pastes at an explicit point when one is given, and restarts the fan-out", () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [selected({ id: "a", position: { x: 100, y: 100 } })],
+        initialEdges: [],
+      }),
+    );
+    act(() => result.current.setSelectedNodeId("a"));
+    act(() => result.current.copySelection());
+
+    act(() => result.current.paste({ x: 900, y: 40 }));
+    expect(result.current.nodes.at(-1)?.position).toEqual({ x: 900, y: 40 });
+  });
+
+  it("toggles the elements panel", async () => {
+    const { result } = renderHook(() => useEditorState({ initialNodes: [], initialEdges: [] }));
+    expect(result.current.showLeftPanel).toBe(false);
+
+    await act(() => press("b", { metaKey: true }));
+    expect(result.current.showLeftPanel).toBe(true);
+
+    await act(() => press("b", { metaKey: true }));
+    expect(result.current.showLeftPanel).toBe(false);
+  });
+
+  it("clears the selection on Escape", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: [selected({ id: "a" })], initialEdges: [] }),
+    );
+    act(() => result.current.setSelectedNodeId("a"));
+
+    await act(() => press("Escape"));
+    expect(result.current.selectedNodeId).toBeNull();
+    expect(result.current.nodes[0].selected).toBe(false);
+  });
+
+  it("does not fire while the user is typing", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [selected({ id: "a", data: { label: "A", type: "rect", fontSize: 14 } })],
+        initialEdges: [],
+      }),
+    );
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", { key: ".", metaKey: true, shiftKey: true, bubbles: true }),
+    );
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(result.current.nodes[0].data.fontSize).toBe(14);
+    input.remove();
+  });
+});
+
+describe("placing elements added without a position", () => {
+  it("centres them on the visible canvas rather than a fixed coordinate", () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [],
+        initialEdges: [],
+        // Author has panned far from the origin.
+        getViewportCenter: () => ({ x: 4000, y: 3000 }),
+      }),
+    );
+
+    act(() => result.current.handleAddNode("round-rect", "Step"));
+
+    // 160x80 default, so the centre of the box lands on the centre of the view.
+    expect(result.current.nodes[0].position).toEqual({ x: 3920, y: 2960 });
+  });
+
+  it("cascades instead of stacking when several are added in a row", () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [],
+        initialEdges: [],
+        getViewportCenter: () => ({ x: 1000, y: 1000 }),
+      }),
+    );
+
+    act(() => result.current.handleAddNode("round-rect", "One"));
+    act(() => result.current.handleAddNode("round-rect", "Two"));
+    act(() => result.current.handleAddNode("round-rect", "Three"));
+
+    const positions = result.current.nodes.map((node) => node.position);
+    expect(positions).toEqual([
+      { x: 920, y: 960 },
+      { x: 948, y: 988 },
+      { x: 976, y: 1016 },
+    ]);
+  });
+
+  it("centres icons on the view too", () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [],
+        initialEdges: [],
+        getViewportCenter: () => ({ x: 500, y: 400 }),
+      }),
+    );
+
+    act(() =>
+      result.current.handleAddIcon({
+        icon: "lucide:home",
+        body: "<path d='M3 9l9-7 9 7'/>",
+        viewBox: "0 0 24 24",
+        label: "home",
+      }),
+    );
+
+    // Icons are 100x100.
+    expect(result.current.nodes[0].position).toEqual({ x: 450, y: 350 });
+  });
+
+  it("still lets sequence shapes claim their own lifeline column", () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [],
+        initialEdges: [],
+        getViewportCenter: () => ({ x: 5000, y: 5000 }),
+      }),
+    );
+
+    act(() => result.current.handleAddNode("sequence-participant", "API"));
+
+    // Sequence placement is positional notation, not a matter of taste, so it
+    // must win over "wherever the author happens to be looking".
+    expect(result.current.nodes[0].position).not.toEqual({ x: 4930, y: 4880 });
+    expect(result.current.nodes[0].position.y).toBe(120);
+  });
+
+  it("falls back to a fixed spot before the canvas reports a viewport", () => {
+    const { result } = renderHook(() => useEditorState({ initialNodes: [], initialEdges: [] }));
+
+    act(() => result.current.handleAddNode("round-rect", "Step"));
+    expect(result.current.nodes[0].position).toEqual({ x: 300, y: 200 });
+  });
+
+  it("honours an explicit position over the viewport centre", () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [],
+        initialEdges: [],
+        getViewportCenter: () => ({ x: 1000, y: 1000 }),
+      }),
+    );
+
+    act(() => result.current.handleAddNode("round-rect", "Step", { x: 12, y: 34 }));
+    expect(result.current.nodes[0].position).toEqual({ x: 12, y: 34 });
+  });
+});

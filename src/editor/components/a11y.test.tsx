@@ -69,6 +69,69 @@ describe("CollapsedElementsRail accessibility", () => {
     expect(screen.queryByRole("button", { name: "AWS elements, EC2 selected" })).toBeNull();
   });
 
+  it("advertises a digit shortcut on each of the first eight rail groups", () => {
+    render(<CollapsedElementsRail onAddNode={() => {}} onExpand={() => {}} />);
+
+    // The rail order is fixed, so the digits are stable and worth pinning.
+    const expected: [string, string][] = [
+      ["Basic elements, Star selected", "1"],
+      ["Search icons", "2"],
+      ["Arrows elements, Right Arrow selected", "3"],
+      ["Flowchart elements, Decision selected", "4"],
+      ["Sequence elements, Participant selected", "5"],
+      ["Architecture elements, Backend Service selected", "6"],
+      ["UML elements, Actor selected", "7"],
+      ["Containers elements, Folder selected", "8"],
+    ];
+    for (const [name, digit] of expected) {
+      const button = screen.getByRole("button", { name });
+      expect(button.getAttribute("aria-keyshortcuts"), name).toBe(digit);
+      expect(button.title, name).toContain(`(${digit})`);
+    }
+    // The group picker is the ninth slot and gets no digit.
+    expect(
+      screen
+        .getByRole("button", { name: "Choose element groups" })
+        .getAttribute("aria-keyshortcuts"),
+    ).toBeNull();
+  });
+
+  it("opens a rail group's flyout when its digit is pressed", async () => {
+    render(<CollapsedElementsRail onAddNode={() => {}} onExpand={() => {}} />);
+    expect(screen.queryByText("Arrows elements")).toBeNull();
+
+    fireEvent.keyDown(window, { key: "3" });
+    await screen.findByText("Arrows elements");
+
+    // Digits past the visible groups, and modified digits, are left alone.
+    fireEvent.keyDown(window, { key: "9" });
+    fireEvent.keyDown(window, { key: "1", metaKey: true });
+    expect(screen.queryByText("Basic elements")).toBeNull();
+  });
+
+  it("does not hijack digits typed into the flyout search box", async () => {
+    render(<CollapsedElementsRail onAddNode={() => {}} onExpand={() => {}} />);
+    fireEvent.keyDown(window, { key: "3" });
+    const search = await screen.findByPlaceholderText("Search Arrows");
+
+    fireEvent.keyDown(search, { key: "5" });
+    expect(screen.queryByText("Sequence elements")).toBeNull();
+  });
+
+  it("moves focus across the flyout grid with arrow keys", async () => {
+    render(<CollapsedElementsRail onAddNode={() => {}} onExpand={() => {}} />);
+    fireEvent.keyDown(window, { key: "3" });
+    await screen.findByText("Arrows elements");
+
+    const first = screen.getByRole("button", { name: "Add Right Arrow to canvas" });
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowRight" });
+    expect(document.activeElement).not.toBe(first);
+    expect((document.activeElement as HTMLElement).getAttribute("aria-label")).toContain(
+      "to canvas",
+    );
+  });
+
   it("adds and removes optional groups from the rail", async () => {
     const user = userEvent.setup();
     render(<CollapsedElementsRail onAddNode={() => {}} onExpand={() => {}} />);

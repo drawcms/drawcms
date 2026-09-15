@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
 import { ShapeThumbnail } from "./shapes/ShapeThumbnail";
 import { AWS_ICONS, GCP_ICONS, AZURE_ICONS, INFRA_ICONS } from "./shapes/cloud-icons";
@@ -15,6 +15,12 @@ import {
   PopoverTrigger,
 } from "./ui/popover";
 import { DEFAULT_COLLAPSED_CATEGORY_IDS } from "./sidebar-defaults";
+import {
+  ELEMENT_CATEGORY_SHORTCUT_COUNT,
+  isTypingTarget,
+  SHORTCUTS,
+  shortcutHint,
+} from "../shortcuts";
 
 export { DEFAULT_COLLAPSED_CATEGORY_IDS } from "./sidebar-defaults";
 
@@ -271,7 +277,13 @@ function ShapeButton({
   );
 }
 
-function IconGroupTool({ onAddIcon }: { onAddIcon: (input: AddIconInput) => void }) {
+function IconGroupTool({
+  onAddIcon,
+  shortcutDigit,
+}: {
+  onAddIcon: (input: AddIconInput) => void;
+  shortcutDigit?: number;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -281,13 +293,19 @@ function IconGroupTool({ onAddIcon }: { onAddIcon: (input: AddIconInput) => void
           <button
             type="button"
             className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            title="Icons: search the Iconify library"
+            title={
+              shortcutDigit
+                ? `Icons: search the Iconify library (${shortcutDigit})`
+                : "Icons: search the Iconify library"
+            }
             aria-label="Search icons"
+            aria-keyshortcuts={shortcutDigit ? String(shortcutDigit) : undefined}
             data-element-group="icons"
           />
         }
       >
         <ShapeThumbnail type="icon" size={24} />
+        {shortcutDigit && <RailShortcutBadge digit={shortcutDigit} />}
         <span
           aria-hidden="true"
           className="absolute bottom-0.5 right-0.5 h-0 w-0 border-b-[3px] border-l-[3px] border-b-muted-foreground border-l-transparent"
@@ -307,18 +325,70 @@ function IconGroupTool({ onAddIcon }: { onAddIcon: (input: AddIconInput) => void
   );
 }
 
+/**
+ * Excalidraw-style corner digit marking the key that opens a rail group.
+ * `aria-hidden` because the accessible name already carries the group and the
+ * binding is announced through `aria-keyshortcuts` on the button itself.
+ */
+function RailShortcutBadge({ digit }: { digit: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute left-0.5 top-0.5 text-[8px] font-semibold leading-none text-muted-foreground/70"
+    >
+      {digit}
+    </span>
+  );
+}
+
+/**
+ * Arrow-key navigation for a flyout's shape grid. The tiles are a plain
+ * four-column grid of buttons, so Tab alone would walk them one at a time; this
+ * makes Up/Down move a whole row the way a grid is expected to behave.
+ */
+function handleShapeGridKeyDown(event: React.KeyboardEvent<HTMLDivElement>, columns: number) {
+  const keys = ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"];
+  if (!keys.includes(event.key)) return;
+  const tiles = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+  if (tiles.length === 0) return;
+  const current = tiles.indexOf(document.activeElement as HTMLButtonElement);
+  const step =
+    event.key === "ArrowRight"
+      ? 1
+      : event.key === "ArrowLeft"
+        ? -1
+        : event.key === "ArrowDown"
+          ? columns
+          : event.key === "ArrowUp"
+            ? -columns
+            : 0;
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? tiles.length - 1
+        : current < 0
+          ? 0
+          : Math.min(tiles.length - 1, Math.max(0, current + step));
+  event.preventDefault();
+  tiles[next]?.focus();
+}
+
 function ElementGroupTool({
   category,
   onAddNode,
   onAddIcon,
   selectedShapeId,
   onSelectedShapeChange,
+  shortcutDigit,
 }: {
   category: ShapeCategory;
   onAddNode: (type: string, title: string) => void;
   onAddIcon: (input: AddIconInput) => void;
   selectedShapeId: string | undefined;
   onSelectedShapeChange: (categoryId: string, shapeId: string) => void;
+  /** Digit key that opens this group, or undefined past the ninth rail slot. */
+  shortcutDigit?: number;
 }) {
   const searchId = useId();
   const [open, setOpen] = useState(false);
@@ -333,7 +403,7 @@ function ElementGroupTool({
   );
 
   if (category.id === "icons") {
-    return <IconGroupTool onAddIcon={onAddIcon} />;
+    return <IconGroupTool onAddIcon={onAddIcon} shortcutDigit={shortcutDigit} />;
   }
 
   const selectedShape =
@@ -364,13 +434,19 @@ function ElementGroupTool({
               selectedIsEdgeTool ? undefined : (event) => setShapeDragData(event, selectedShape)
             }
             className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            title={`${category.title}: ${selectedShape.title}`}
+            title={
+              shortcutDigit
+                ? `${category.title}: ${selectedShape.title} (${shortcutDigit})`
+                : `${category.title}: ${selectedShape.title}`
+            }
             aria-label={`${category.title} elements, ${selectedShape.title} selected`}
+            aria-keyshortcuts={shortcutDigit ? String(shortcutDigit) : undefined}
             data-element-group={category.id}
           />
         }
       >
         <ShapeThumbnail type={selectedShape.id} size={24} />
+        {shortcutDigit && <RailShortcutBadge digit={shortcutDigit} />}
         <span
           aria-hidden="true"
           className="absolute bottom-0.5 right-0.5 h-0 w-0 border-b-[3px] border-l-[3px] border-b-muted-foreground border-l-transparent"
@@ -408,7 +484,10 @@ function ElementGroupTool({
 
         <div className="custom-scrollbar min-h-0 overflow-y-auto px-3 pb-3">
           {visibleShapes.length > 0 ? (
-            <div className="grid grid-cols-4 gap-2">
+            <div
+              className="grid grid-cols-4 gap-2"
+              onKeyDown={(event) => handleShapeGridKeyDown(event, 4)}
+            >
               {visibleShapes.map((shape) => {
                 const selected = shape.id === selectedShape.id;
                 const isEdgeTool = isSequenceEdgeType(shape.id);
@@ -572,16 +651,49 @@ export function CollapsedElementsRail({
     setInternalVisibleCategoryIds(nextVisibleCategoryIds);
   };
 
+  /**
+   * Digits `1`–`8` open the matching rail group, the way Excalidraw binds its
+   * tools. This clicks the group's own trigger rather than lifting each flyout's
+   * open state, so the icon picker and the shape flyouts — two different popover
+   * components — both respond, and each keeps managing its own focus trap.
+   */
+  const railRef = useRef<HTMLElement>(null);
+  const visibleCount = activeVisibleCategoryIds.length;
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (isTypingTarget(event) || event.metaKey || event.ctrlKey || event.altKey) return;
+      const digit = Number(event.key);
+      if (!Number.isInteger(digit) || digit < 1) return;
+      if (digit > Math.min(visibleCount, ELEMENT_CATEGORY_SHORTCUT_COUNT)) return;
+      const categoryId = activeVisibleCategoryIds[digit - 1];
+      const trigger = railRef.current?.querySelector<HTMLButtonElement>(
+        `[data-element-group="${categoryId}"]`,
+      );
+      if (!trigger) return;
+      event.preventDefault();
+      trigger.focus();
+      trigger.click();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+    // `activeVisibleCategoryIds` is rebuilt every render; its length and contents
+    // only change when the visible groups do, which `visibleCount` and the joined
+    // ids capture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleCount, activeVisibleCategoryIds.join(",")]);
+
   return (
     <div className="dm-elements-panel dm-panel-enter relative flex h-fit max-h-full w-full">
       <aside
+        ref={railRef}
         aria-label="Element tools"
         className="flex h-fit max-h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-card"
       >
         <div className="custom-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto px-[3px] py-1">
-          {activeVisibleCategoryIds.map((categoryId) => {
+          {activeVisibleCategoryIds.map((categoryId, index) => {
             const category = SHAPE_CATEGORIES.find((candidate) => candidate.id === categoryId);
             if (!category) return null;
+            const digit = index + 1;
             return (
               <ElementGroupTool
                 key={`${category.id}-${dismissSignal}`}
@@ -590,6 +702,7 @@ export function CollapsedElementsRail({
                 onAddIcon={onAddIcon}
                 selectedShapeId={activeSelectedShapeIds[category.id]}
                 onSelectedShapeChange={handleSelectedShapeChange}
+                shortcutDigit={digit <= ELEMENT_CATEGORY_SHORTCUT_COUNT ? digit : undefined}
               />
             );
           })}
@@ -606,8 +719,9 @@ export function CollapsedElementsRail({
         type="button"
         onClick={onExpand}
         className="absolute -right-5 top-1/2 -z-10 flex h-12 w-10 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-border bg-card pl-[20px] text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        title="Expand elements panel"
+        title={`Expand elements panel (${shortcutHint("toggleElementsPanel")})`}
         aria-label="Expand elements panel"
+        aria-keyshortcuts={SHORTCUTS.toggleElementsPanel.label}
       >
         <ChevronRight size={14} aria-hidden="true" />
       </button>
@@ -734,8 +848,9 @@ export function SidebarLeft({
           type="button"
           onClick={onCollapse}
           className="absolute -right-5 top-1/2 -z-10 flex h-12 w-10 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-border bg-card pl-[20px] text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          title="Hide elements panel"
+          title={`Hide elements panel (${shortcutHint("toggleElementsPanel")})`}
           aria-label="Hide elements panel"
+          aria-keyshortcuts={SHORTCUTS.toggleElementsPanel.label}
         >
           <ChevronLeft size={14} aria-hidden="true" />
         </button>

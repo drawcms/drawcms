@@ -25,6 +25,7 @@ export {
   findDropContainer,
   groupNodesInSnapshot,
   GROUPABLE_CONTAINER_TYPES,
+  nextFreePosition,
   reparentOnDragStop,
   replaceNodeInSnapshot,
   reverseEdgeInSnapshot,

@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  DEFAULT_LABEL_INSET,
+  getNodeSize,
+  SHAPE_LABEL_INSETS,
+  TEXT_BELOW_NODE_TYPES,
+} from "../constants";
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useState, useCallback } from "react";
 import {
   ReactFlow,
@@ -10,6 +16,7 @@ import {
   Position,
   NodeResizer,
   ConnectionMode,
+  SelectionMode,
   type NodeChange,
   type EdgeChange,
   type Connection,
@@ -31,7 +38,7 @@ import { useNodeCallbacks, useAnimationState } from "../contexts";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { isCloudIconType, getCloudIcon } from "./shapes/cloud-icons";
 import { ImageCropDialog } from "./ImageCropDialog";
-import { ListOrdered } from "lucide-react";
+import { Hand, ListOrdered, SquareDashedMousePointer } from "lucide-react";
 import type { SequenceEdgeToolState } from "../hooks/useEditorState";
 import {
   SEQUENCE_LIFELINE_TYPES,
@@ -43,6 +50,7 @@ import {
 import type { StoryTarget } from "../story/model";
 import { STORY_ACTIVE_FILL, STORY_ACTIVE_STROKE, STORY_ACTIVE_TEXT } from "../story/highlight";
 import { ALL_CONTAINER_TYPES } from "../constants";
+import { hasOpenOverlay, isTypingTarget, matches, SHORTCUTS, shortcutHint } from "../shortcuts";
 import { sanitizeIconBody } from "../io/iconify";
 import type { AppEdge, AppNode } from "../types";
 import {
@@ -65,6 +73,8 @@ const CanvasCustomNode = (props: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   selected: boolean;
+  width?: number;
+  height?: number;
 }) => (props.data.type === "text" ? <TextNode {...props} /> : <CustomShapeNode {...props} />);
 
 type ArtworkHandleStyles = Record<"top" | "left" | "right" | "bottom", React.CSSProperties>;
@@ -117,8 +127,20 @@ function SequenceLifelineHandles() {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const CustomShapeNode = ({ id, data, selected }: { id: string; data: any; selected: boolean }) => {
+const CustomShapeNode = ({
+  id,
+  data,
+  selected,
+  width,
+  height,
+}: {
+  id: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+  selected: boolean;
+  width?: number;
+  height?: number;
+}) => {
   const nodeRef = useRef<HTMLDivElement>(null);
   const visualAreaRef = useRef<HTMLDivElement>(null);
   const [artworkHandleStyles, setArtworkHandleStyles] = useState(DEFAULT_ARTWORK_HANDLE_STYLES);
@@ -155,29 +177,17 @@ const CustomShapeNode = ({ id, data, selected }: { id: string; data: any; select
   const textAlign = (data?.textAlign as string) || "center";
   const isSequenceNode = SEQUENCE_NODE_TYPES.has(data.type as string);
   const isSequenceLifeline = SEQUENCE_LIFELINE_TYPES.has(String(data.type));
+  // Shape artwork is painted with `preserveAspectRatio="none"`, so shapes that
+  // embed a fixed-proportion sigil need the node's real aspect ratio to cancel
+  // that stretch. React Flow only reports measured sizes after the first layout
+  // pass, so fall back to the palette default to avoid a distorted first paint.
+  const shapeAspectRatio = useMemo(() => {
+    if (width && height) return width / height;
+    const fallback = getNodeSize(String(data.type));
+    return fallback.width > 0 && fallback.height > 0 ? fallback.width / fallback.height : undefined;
+  }, [width, height, data.type]);
 
   // Shapes where text goes below the shape (like draw.io)
-  const textBelowTypes = new Set([
-    "actor",
-    "image",
-    "cylinder",
-    "database",
-    "cloud",
-    "star",
-    "uml-interface",
-    "bpmn-start",
-    "bpmn-end",
-    "bpmn-intermediate",
-    "triangle",
-    "cross",
-    "pentagon",
-    "octagon",
-    "er-relationship",
-    "er-weak-relationship",
-    "bpmn-gateway-exclusive",
-    "bpmn-gateway-parallel",
-    "bpmn-gateway-inclusive",
-  ]);
   const hasCustomImage = data.type === "image" && data.imageUrl;
   const isIconNode = data.type === "icon" && typeof data.iconBody === "string";
   // Stored icon bodies re-enter the app from files, storage, and hosts —
@@ -205,10 +215,29 @@ const CustomShapeNode = ({ id, data, selected }: { id: string; data: any; select
                   ? "absolute bottom-[8%] left-[32%] right-[7%] top-[8%] z-10 flex items-center justify-center overflow-hidden text-center"
                   : semanticLabelPlacement === "card-header"
                     ? "absolute left-[9%] right-[9%] top-[7%] z-10 flex h-[22%] items-center justify-center overflow-hidden text-center"
-                    : "absolute inset-[10%] z-10 flex items-center justify-center overflow-hidden text-center";
+                    : "absolute z-10 flex items-center justify-center overflow-hidden text-center";
+  // Non-rectangular shapes need a bigger inset than a flat 10% for the text to
+  // land inside the drawn outline instead of spilling over its edges. Only the
+  // generic centered placement is geometry-driven; the hand-tuned sequence and
+  // annotation boxes above already encode their own geometry.
+  const geometryInset =
+    semanticLabelPlacement === "center" &&
+    data.type !== "text" &&
+    data.type !== "sequence-note" &&
+    data.type !== "sequence-reference"
+      ? (SHAPE_LABEL_INSETS[data.type as string] ?? DEFAULT_LABEL_INSET)
+      : undefined;
+  const geometryInsetStyle = geometryInset
+    ? {
+        top: `${geometryInset.top}%`,
+        right: `${geometryInset.right}%`,
+        bottom: `${geometryInset.bottom}%`,
+        left: `${geometryInset.left}%`,
+      }
+    : undefined;
   const isTextBelow =
     !hasCustomImage &&
-    (textBelowTypes.has(data.type as string) ||
+    (TEXT_BELOW_NODE_TYPES.has(data.type as string) ||
       SEMANTIC_TEXT_BELOW_TYPES.has(data.type as string) ||
       isCloudIconType(data.type as string));
   // Labels beneath a symbol (and sequence actors) are drawn against the
@@ -692,12 +721,15 @@ const CustomShapeNode = ({ id, data, selected }: { id: string; data: any; select
               fill={storyFillColor}
               stroke={storyStrokeColor}
               strokeWidth={strokeWidth}
+              aspectRatio={shapeAspectRatio}
             />
           </svg>
         )}
 
         {!hasCustomImage && !isIconNode && !isSequenceLifeline && (
-          <div className={semanticLabelClassName}>{labelEl}</div>
+          <div className={semanticLabelClassName} style={geometryInsetStyle}>
+            {labelEl}
+          </div>
         )}
 
         <Handle
@@ -760,6 +792,14 @@ interface DiagramCanvasProps {
   onCancelSequenceEdgeTool?: () => void;
   /** Smallest camera zoom. Viewer thumbnails may opt below the editor default. */
   minZoom?: number;
+  /** Largest camera zoom, for close work on a dense diagram. */
+  maxZoom?: number;
+  /**
+   * Lends the host a getter for the centre of the visible canvas in flow
+   * coordinates, so elements added from outside the canvas (the element panel)
+   * can be placed where the author is looking. Called with null on unmount.
+   */
+  registerViewportCenter?: (getCenter: (() => { x: number; y: number } | null) | null) => void;
   /** Enables the "Generate with ChatGPT" WebMCP deep link in the canvas controls. */
   webMcp?: boolean;
   /** Host hook to rewrite the "Draw with ChatGPT" deep link on click (e.g. an
@@ -767,14 +807,34 @@ interface DiagramCanvasProps {
   chatGptDeepLinkResolver?: (pageUrl: string) => Promise<string | null>;
 }
 
-function CanvasControls({ onOpenSteps }: { onOpenSteps?: () => void }) {
+/**
+ * Zoom range. The canvas is meant to read as an unbounded surface: panning is
+ * already unlimited (no `translateExtent`), so the zoom floor is what decides
+ * how much of a large diagram can ever be on screen at once. React Flow's
+ * defaults (0.5 to 2) are far too tight for that — a wide process diagram could
+ * not be zoomed out far enough to see whole.
+ */
+export const DEFAULT_MIN_ZOOM = 0.05;
+export const DEFAULT_MAX_ZOOM = 8;
+
+function CanvasControls({
+  onOpenSteps,
+  areaSelect,
+  onAreaSelectChange,
+  minZoom,
+}: {
+  onOpenSteps?: () => void;
+  areaSelect: boolean;
+  onAreaSelectChange: (next: boolean) => void;
+  minZoom: number;
+}) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const reducedMotion = useReducedMotion();
   // Instant camera moves under prefers-reduced-motion (DM-032).
   const zoomDuration = reducedMotion ? 0 : 200;
-
   const btnCls =
     "flex h-10 w-10 items-center justify-center text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
+  const activeBtnCls = `${btnCls} bg-accent text-primary`;
 
   return (
     <Panel position="bottom-center" className="!mb-3">
@@ -783,6 +843,28 @@ function CanvasControls({ onOpenSteps }: { onOpenSteps?: () => void }) {
         aria-label="Canvas controls"
         className="flex flex-row overflow-hidden rounded-lg border border-border bg-card"
       >
+        <button
+          onClick={() => onAreaSelectChange(false)}
+          className={areaSelect ? btnCls : activeBtnCls}
+          title={`Pan the canvas (${shortcutHint("panTool")})`}
+          aria-label="Pan the canvas"
+          aria-keyshortcuts={SHORTCUTS.panTool.label}
+          aria-pressed={!areaSelect}
+        >
+          <Hand size={16} strokeWidth={2} aria-hidden="true" />
+        </button>
+        <div className="w-px bg-border" />
+        <button
+          onClick={() => onAreaSelectChange(true)}
+          className={areaSelect ? activeBtnCls : btnCls}
+          title={`Select an area (${shortcutHint("areaSelectTool")})`}
+          aria-label="Select an area"
+          aria-keyshortcuts={SHORTCUTS.areaSelectTool.label}
+          aria-pressed={areaSelect}
+        >
+          <SquareDashedMousePointer size={16} strokeWidth={2} aria-hidden="true" />
+        </button>
+        <div className="w-px bg-border" />
         <button
           onClick={() => zoomIn({ duration: zoomDuration })}
           className={btnCls}
@@ -829,7 +911,16 @@ function CanvasControls({ onOpenSteps }: { onOpenSteps?: () => void }) {
         </button>
         <div className="w-px bg-border" />
         <button
-          onClick={() => fitView({ padding: 0.2, duration: reducedMotion ? 0 : 300 })}
+          onClick={() =>
+            fitView({
+              padding: 0.2,
+              // React Flow otherwise clamps fitting to its own 0.5 default, which
+              // would silently clip any diagram wider than about twice the
+              // viewport from a control named "fit all elements".
+              minZoom,
+              duration: reducedMotion ? 0 : 300,
+            })
+          }
           className={btnCls}
           title="Fit all elements"
           aria-label="Fit all elements"
@@ -892,7 +983,9 @@ export function DiagramCanvas({
   activeSequenceEdgeTool = null,
   onSequenceEdgeNodeClick,
   onCancelSequenceEdgeTool,
-  minZoom = 0.5,
+  minZoom = DEFAULT_MIN_ZOOM,
+  maxZoom = DEFAULT_MAX_ZOOM,
+  registerViewportCenter,
   webMcp = false,
   chatGptDeepLinkResolver,
 }: DiagramCanvasProps) {
@@ -988,10 +1081,123 @@ export function DiagramCanvas({
     [nodes],
   );
 
+  /**
+   * Dragging the pane either pans the canvas or draws a selection box; the two
+   * cannot both own a plain drag. Each mode keeps the other available through a
+   * modifier, so neither is ever out of reach: hold Space to pan while the
+   * selection tool is active, hold Shift to marquee-select while panning.
+   */
+  const [areaSelect, setAreaSelect] = useState(false);
+  useEffect(() => {
+    if (readOnly) return;
+    const handler = (event: KeyboardEvent) => {
+      if (isTypingTarget(event) || hasOpenOverlay()) return;
+      if (matches(event, "areaSelectTool")) {
+        event.preventDefault();
+        setAreaSelect(true);
+      } else if (matches(event, "panTool")) {
+        event.preventDefault();
+        setAreaSelect(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [readOnly]);
+  const areaSelectActive = areaSelect && !readOnly;
+
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
   }, []);
+
+  /**
+   * Insert a node at a canvas point, nesting it into whatever container sits
+   * under that point — the same rule `onDrop` applies, so double-click,
+   * drag-and-drop, and the keyboard insert all agree on where an element lands.
+   */
+  const addNodeAtFlowPosition = useCallback(
+    (type: string, title: string, position: { x: number; y: number }) => {
+      if (!onAddNode) return;
+      const container = findContainerAtPosition(position);
+      if (container && !ALL_CONTAINER_TYPES.has(type)) {
+        onAddNode(
+          type,
+          title,
+          { x: position.x - container.position.x, y: position.y - container.position.y },
+          container.id,
+        );
+        return;
+      }
+      onAddNode(type, title, position);
+    },
+    [onAddNode, findContainerAtPosition],
+  );
+
+  /** Last pointer position over the canvas, in flow coordinates, for keyboard inserts. */
+  const panePointerRef = useRef<{ x: number; y: number } | null>(null);
+  const trackPanePointer = useCallback((event: React.MouseEvent) => {
+    panePointerRef.current =
+      reactFlowRef.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) ?? null;
+  }, []);
+
+  // Only the canvas knows the current pan and zoom, so it lends the editor a way
+  // to ask where the middle of the visible area currently is. Elements added from
+  // the palette land there instead of at a fixed coordinate that may be far
+  // off-screen.
+  useEffect(() => {
+    if (!registerViewportCenter) return;
+    registerViewportCenter(() => {
+      const instance = reactFlowRef.current;
+      const container = canvasContainerRef.current;
+      if (!instance || !container) return null;
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return null;
+      return instance.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+    });
+    return () => registerViewportCenter(null);
+  }, [registerViewportCenter]);
+
+  /**
+   * Double-clicking empty canvas starts a text element there, the way a
+   * whiteboard does. React Flow has no pane double-click prop, so this listens on
+   * the wrapper and filters to the pane itself — a double-click on a node must
+   * still reach that node's own edit handler.
+   */
+  const handleCanvasDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      if (readOnly || !onAddNode) return;
+      const target = event.target as HTMLElement | null;
+      if (!target?.classList.contains("react-flow__pane")) return;
+      const position = reactFlowRef.current?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (!position) return;
+      const { height } = getNodeSize("text");
+      // Anchor the caret at the click instead of the node's top-left corner.
+      addNodeAtFlowPosition("text", "", { x: position.x, y: position.y - height / 2 });
+    },
+    [readOnly, onAddNode, addNodeAtFlowPosition],
+  );
+
+  // "Add element here" from the context menu also has a keyboard binding, which
+  // needs a point: the last place the pointer was over the canvas.
+  useEffect(() => {
+    if (readOnly || !onAddNode) return;
+    const handler = (event: KeyboardEvent) => {
+      if (isTypingTarget(event) || hasOpenOverlay()) return;
+      if (!matches(event, "addElement")) return;
+      const position = panePointerRef.current;
+      if (!position) return;
+      event.preventDefault();
+      addNodeAtFlowPosition("rounded-rect", "New element", position);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [readOnly, onAddNode, addNodeAtFlowPosition]);
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -1003,20 +1209,9 @@ export function DiagramCanvas({
         x: event.clientX,
         y: event.clientY,
       });
-
-      // Check if dropping inside a container
-      const containerNode = findContainerAtPosition(position);
-      if (containerNode && !ALL_CONTAINER_TYPES.has(type)) {
-        const relativePosition = {
-          x: position.x - containerNode.position.x,
-          y: position.y - containerNode.position.y,
-        };
-        onAddNode(type, title, relativePosition, containerNode.id);
-      } else {
-        onAddNode(type, title, position);
-      }
+      addNodeAtFlowPosition(type, title, position);
     },
-    [onAddNode, findContainerAtPosition],
+    [onAddNode, addNodeAtFlowPosition],
   );
 
   const handleNodeDragStop = useCallback(
@@ -1033,7 +1228,9 @@ export function DiagramCanvas({
       ref={canvasContainerRef}
       className={`absolute inset-0 overflow-hidden bg-background ${
         readOnly ? "dm-canvas-readonly" : ""
-      }`}
+      } ${areaSelectActive ? "dm-canvas-area-select" : ""}`}
+      onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}
+      onMouseMove={readOnly ? undefined : trackPanePointer}
     >
       <ReactFlow
         className={activeSequenceEdgeTool ? "dm-sequence-edge-mode" : ""}
@@ -1057,6 +1254,14 @@ export function DiagramCanvas({
         edgesFocusable={!readOnly}
         deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
         minZoom={minZoom}
+        maxZoom={maxZoom}
+        selectionOnDrag={areaSelectActive}
+        panOnDrag={!areaSelectActive}
+        // Partial so brushing an element selects it, instead of demanding the box
+        // fully enclose it — what people expect from a marquee.
+        selectionMode={SelectionMode.Partial}
+        // Double-click creates a text element instead, so it must not also zoom.
+        zoomOnDoubleClick={readOnly}
         onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
         onNodeClick={
           readOnly
@@ -1215,7 +1420,12 @@ export function DiagramCanvas({
             </div>
           </Panel>
         )}
-        <CanvasControls onOpenSteps={onOpenSteps} />
+        <CanvasControls
+          onOpenSteps={onOpenSteps}
+          areaSelect={areaSelectActive}
+          onAreaSelectChange={setAreaSelect}
+          minZoom={minZoom}
+        />
         {webMcp && (
           <Panel position="bottom-left" className="!mb-3">
             <ChatGptButton resolveDeepLink={chatGptDeepLinkResolver} />

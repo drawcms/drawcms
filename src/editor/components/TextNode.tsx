@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Handle, NodeResizer, Position } from "@xyflow/react";
 import { useAnimationState, useNodeCallbacks } from "../contexts";
 import { STORY_ACTIVE_TEXT } from "../story/highlight";
@@ -14,6 +14,13 @@ export const TEXT_FONT_FAMILIES = {
 
 const DEFAULT_TEXT_COLOR = "#1f2937";
 const THEME_INK = "var(--drawcms-ink)";
+
+/**
+ * Frames to keep trying to focus a just-created text editor. Roughly a quarter of
+ * a second at 60fps — long enough to outlast React Flow measuring the node and
+ * settling focus, short enough to give up quietly if it never becomes visible.
+ */
+const FOCUS_ON_CREATE_ATTEMPTS = 15;
 
 export type TextFontFamily = keyof typeof TEXT_FONT_FAMILIES;
 
@@ -42,6 +49,7 @@ export function TextNode({
   const measureRef = useRef<HTMLSpanElement>(null);
   const lastMeasuredRef = useRef<{ width: number; height: number } | null>(null);
   const [isEditing, setIsEditing] = useState(data.textEditOnMount === true);
+  const startedInEditModeRef = useRef(data.textEditOnMount === true);
   const [draft, setDraft] = useState(String(data.label ?? ""));
 
   const fontSize = safeNumber(data.fontSize, 20);
@@ -113,6 +121,54 @@ export function TextNode({
     callbacks?.onStyleChange(id, { textEditOnMount: undefined });
   }, [callbacks, data.textEditOnMount, id]);
 
+  /**
+   * Put the caret in the editor when the element is created mid-edit.
+   *
+   * `autoFocus` is not enough: React Flow selects the new node and moves focus to
+   * its wrapper (nodes are focusable), and a palette insert additionally hands
+   * focus back to the flyout trigger as the popover closes. Both happen after
+   * mount, so the focus call has to run after them — hence the frame delay.
+   *
+   * The frame is deliberately not cancelled on cleanup. Auto-resize writes the
+   * measured size back into the document, so this node re-renders repeatedly just
+   * after mounting; a cleanup that cancelled the pending frame would keep
+   * rescheduling it and the focus would never land.
+   */
+  /**
+   * Put the caret in the editor when the element is created mid-edit.
+   *
+   * This cannot be done with `autoFocus`, or with a single deferred `focus()`:
+   *
+   *  - React Flow renders a newly added node hidden until it has measured it, and
+   *    `focus()` is silently ignored on an element with no layout box;
+   *  - once visible, React Flow selects the node and moves focus to its wrapper,
+   *    and a palette insert also returns focus to the flyout trigger it closed.
+   *
+   * So the editor is claimed as soon as it is actually focusable, retrying over a
+   * short window and stopping the moment the caret lands. Success is measured by
+   * asking whether focus took, rather than by predicting focusability, so the same
+   * code works in a headless DOM with no layout. The window is bounded so a node
+   * that never becomes visible cannot leave a frame loop running.
+   */
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!startedInEditModeRef.current) return;
+    let frame = 0;
+    let attemptsLeft = FOCUS_ON_CREATE_ATTEMPTS;
+    const claimEditor = () => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      if (document.activeElement !== editor) editor.focus();
+      if (document.activeElement === editor) {
+        editor.setSelectionRange(editor.value.length, editor.value.length);
+        return;
+      }
+      if (--attemptsLeft > 0) frame = requestAnimationFrame(claimEditor);
+    };
+    frame = requestAnimationFrame(claimEditor);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const startEditing = useCallback(() => {
     initialValueRef.current = String(data.label ?? "");
     editFinishedRef.current = false;
@@ -172,6 +228,7 @@ export function TextNode({
 
         {isEditing ? (
           <textarea
+            ref={editorRef}
             autoFocus
             aria-label="Edit text element"
             value={draft}
