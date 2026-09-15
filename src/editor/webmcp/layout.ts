@@ -20,22 +20,43 @@ export interface LayoutPosition {
   height?: number;
 }
 
+export interface LayoutOptions {
+  /**
+   * Spacing between consecutive ranks along the flow axis. A caller laying the
+   * diagram out top-to-bottom passes `VERTICAL_RANK_GAP`, since the horizontal
+   * default reserves room for a label box lying beside the connector rather
+   * than above it.
+   */
+  rankGap?: number;
+}
+
 /**
  * Diagram types with a directional flow that layered left-to-right ranking
- * suits. Everything else (general, uml, bpmn, entity-relationship, and any
- * graph containing a real multi-node cycle) falls back to the grid — those
- * notations do not have one dominant flow axis, and forcing a rank onto
- * them would misrepresent the diagram rather than clarify it.
+ * suits. Feedback edges are excluded from ranking and routed separately.
  */
 const LAYERED_DIAGRAM_TYPES = new Set<VisualDiagramType>([
   "flowchart",
   "architecture",
   "data-flow",
   "lifecycle",
+  "bpmn",
+  "entity-relationship",
+  "database-model",
+  "uml",
 ]);
 
-const RANK_GAP = 120;
-const LANE_GAP = 40;
+const RANK_GAP = 240;
+/**
+ * Rank spacing along a vertical flow.
+ *
+ * A connector label is a wide, short box. Laid out along a horizontal flow it
+ * needs the full `RANK_GAP` of channel to sit beside the line; stacked along a
+ * vertical flow it only needs a couple of text lines. Reusing the horizontal
+ * figure transposed stretched a ten-step process over thousands of pixels of
+ * empty canvas and forced the camera so far out that nothing was legible.
+ */
+export const VERTICAL_RANK_GAP = 110;
+const LANE_GAP = 100;
 const LIFELINE_GAP = 100;
 const GRID_MARGIN_X = 120;
 const GRID_MARGIN_Y = 100;
@@ -66,31 +87,51 @@ export const SEQUENCE_LIFELINE_HEIGHT = 620;
  *   ranked by longest path from a source over the edge set (a topological
  *   layering), placed left-to-right by rank and top-to-bottom within a rank,
  *   with a single barycenter sweep to reduce connector crossings.
- * - Everything else, and any graph containing a real cycle: a grid, matching
- *   prior behavior.
+ * - BPMN, UML and data models use layers too; use cases separate actors.
+ * - General diagrams use a size-aware grid. Feedback edges retain forward ranks.
  */
 export function layoutNodes(
   diagramType: VisualDiagramType,
   nodes: LayoutNode[],
   edges: LayoutEdge[],
+  options: LayoutOptions = {},
 ): Map<string, LayoutPosition> {
+  const rankGap = options.rankGap ?? RANK_GAP;
   if (diagramType === "sequence") return layoutSequenceLifelines(nodes, edges);
+  if (diagramType === "use-case") {
+    const actors = nodes.filter((node) => node.type === "actor");
+    const cases = nodes.filter((node) => node.type !== "actor");
+    return (
+      layoutLayered(
+        nodes,
+        cases.flatMap((node) => actors.map((actor) => ({ source: actor.id, target: node.id }))),
+        rankGap,
+      ) ?? layoutGrid(nodes, rankGap)
+    );
+  }
   if (LAYERED_DIAGRAM_TYPES.has(diagramType)) {
-    const layered = layoutLayered(nodes, edges);
+    const layered = layoutLayered(nodes, edges, rankGap);
     if (layered) return layered;
   }
-  return layoutGrid(nodes);
+  return layoutGrid(nodes, rankGap);
 }
 
-function layoutGrid(nodes: LayoutNode[]): Map<string, LayoutPosition> {
+function layoutGrid(nodes: LayoutNode[], rankGap: number): Map<string, LayoutPosition> {
   const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
   const positions = new Map<string, LayoutPosition>();
-  nodes.forEach((node, index) => {
-    positions.set(node.id, {
-      x: GRID_MARGIN_X + (index % columns) * GRID_COLUMN_GAP,
-      y: GRID_MARGIN_Y + Math.floor(index / columns) * GRID_ROW_GAP,
+  const widths = Array.from({ length: columns }, (_, column) =>
+    Math.max(0, ...nodes.filter((_, i) => i % columns === column).map((n) => n.width)),
+  );
+  let y = GRID_MARGIN_Y;
+  for (let start = 0; start < nodes.length; start += columns) {
+    let x = GRID_MARGIN_X;
+    const row = nodes.slice(start, start + columns);
+    row.forEach((node, column) => {
+      positions.set(node.id, { x, y });
+      x += Math.max(GRID_COLUMN_GAP, widths[column] + rankGap);
     });
-  });
+    y += Math.max(GRID_ROW_GAP, ...row.map((node) => node.height + LANE_GAP));
+  }
   return positions;
 }
 
@@ -124,19 +165,53 @@ function layoutSequenceLifelines(
 /**
  * Longest-path layering (a simplified Sugiyama-style layout): rank every
  * node by the longest directed path reaching it, place ranks left to right,
- * and stack nodes within a rank top to bottom. Returns null when the edge
- * set contains a real multi-node cycle, since longest-path ranking is
- * undefined there — callers fall back to the grid.
+ * and stack nodes within a rank top to bottom. Feedback edges are removed
+ * only from ranking; all edges remain in the document.
  */
 function layoutLayered(
   nodes: LayoutNode[],
   edges: LayoutEdge[],
+  rankGap: number,
 ): Map<string, LayoutPosition> | null {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   // Self-loops don't affect ranking and would trivially look like a cycle;
   // exclude them from the ranking graph but keep every node reachable.
-  const structuralEdges = edges.filter(
+  const candidateEdges = edges.filter(
     (edge) => edge.source !== edge.target && byId.has(edge.source) && byId.has(edge.target),
+  );
+
+  // Keep a deterministic forward backbone. Feedback edges remain in the
+  // document and route outside the ranks; they must not collapse a process
+  // with a retry path into a grid. Iterative DFS avoids recursion limits.
+  const adjacency = new Map(nodes.map((node) => [node.id, [] as string[]]));
+  for (const edge of candidateEdges) adjacency.get(edge.source)!.push(edge.target);
+  const active = new Set<string>();
+  const visited = new Set<string>();
+  const feedback = new Set<string>();
+  for (const node of nodes) {
+    if (visited.has(node.id)) continue;
+    const stack = [{ id: node.id, next: 0 }];
+    active.add(node.id);
+    visited.add(node.id);
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      const children = adjacency.get(frame.id)!;
+      if (frame.next === children.length) {
+        active.delete(frame.id);
+        stack.pop();
+        continue;
+      }
+      const next = children[frame.next++];
+      if (active.has(next)) feedback.add(`${frame.id}\0${next}`);
+      else if (!visited.has(next)) {
+        visited.add(next);
+        active.add(next);
+        stack.push({ id: next, next: 0 });
+      }
+    }
+  }
+  const structuralEdges = candidateEdges.filter(
+    (edge) => !feedback.has(`${edge.source}\0${edge.target}`),
   );
 
   const outgoing = new Map<string, string[]>();
@@ -220,19 +295,26 @@ function layoutLayered(
     );
   }
 
-  // A single global rank spacing (the widest node overall) guarantees no
-  // rank overlaps another regardless of which nodes land where.
-  const maxWidth = Math.max(...nodes.map((node) => node.width), 0);
+  // Rank spacing follows the widest node in the rank being left behind rather
+  // than the widest in the diagram. A global maximum still guarantees no two
+  // ranks touch, but it pushed a rank of small shapes as far apart as the
+  // single largest element on the canvas — which, in a transposed vertical
+  // layout where "width" is really height, left the diagram almost all gap.
   const positions = new Map<string, LayoutPosition>();
+  const layerHeight = (layer: string[]) =>
+    layer.reduce((sum, id) => sum + byId.get(id)!.height + LANE_GAP, -LANE_GAP);
+  const layerWidth = (layer: string[]) => Math.max(0, ...layer.map((id) => byId.get(id)!.width));
+  const maxHeight = Math.max(0, ...[...layers.values()].map(layerHeight));
+  let x = GRID_MARGIN_X;
   for (const r of sortedRanks) {
     const layer = layers.get(r)!;
-    const x = GRID_MARGIN_X + r * (maxWidth + RANK_GAP);
-    let y = GRID_MARGIN_Y;
+    let y = GRID_MARGIN_Y + (maxHeight - layerHeight(layer)) / 2;
     for (const id of layer) {
       const node = byId.get(id)!;
       positions.set(id, { x, y });
       y += node.height + LANE_GAP;
     }
+    x += layerWidth(layer) + rankGap;
   }
   return positions;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutNodes, type LayoutEdge, type LayoutNode } from "./layout";
+import { layoutNodes, VERTICAL_RANK_GAP, type LayoutEdge, type LayoutNode } from "./layout";
 
 function node(id: string, type = "round-rect", width = 160, height = 80): LayoutNode {
   return { id, type, width, height };
@@ -15,7 +15,7 @@ function overlaps(
 
 describe("layoutNodes", () => {
   it("places general-diagram nodes on a grid with no overlaps", () => {
-    const nodes = [node("a"), node("b", "round-rect", 220, 100), node("c"), node("d")];
+    const nodes = [node("a"), node("b", "round-rect", 900, 600), node("c"), node("d")];
     const positions = layoutNodes("general", nodes, []);
     expect(positions.size).toBe(4);
 
@@ -25,6 +25,26 @@ describe("layoutNodes", () => {
         expect(overlaps(boxes[i], boxes[j])).toBe(false);
       }
     }
+  });
+
+  it("spaces ranks more tightly when the caller asks for a vertical gap", () => {
+    // A vertical layout reaches layoutNodes transposed, so the rank axis is
+    // still x here; what matters is that the requested gap is honoured rather
+    // than the horizontal default, which left a tall chain unreadably sparse.
+    const nodes = [node("a"), node("b"), node("c")];
+    const edges: LayoutEdge[] = [
+      { source: "a", target: "b" },
+      { source: "b", target: "c" },
+    ];
+    const wide = layoutNodes("flowchart", nodes, edges);
+    const tight = layoutNodes("flowchart", nodes, edges, { rankGap: VERTICAL_RANK_GAP });
+
+    const pitch = (positions: Map<string, { x: number }>) =>
+      positions.get("b")!.x - positions.get("a")!.x;
+    expect(pitch(tight)).toBeLessThan(pitch(wide));
+    expect(pitch(wide) - pitch(tight)).toBe(240 - VERTICAL_RANK_GAP);
+    // Still clear of the 160-wide nodes it separates.
+    expect(pitch(tight)).toBeGreaterThan(160);
   });
 
   it("ranks flowchart nodes by longest path so edges point along increasing x", () => {
@@ -55,7 +75,7 @@ describe("layoutNodes", () => {
     expect(new Set(ys).size).toBe(3);
   });
 
-  it("falls back to a grid when the edge set contains a real cycle", () => {
+  it("keeps a forward backbone when the edge set contains a real cycle", () => {
     const nodes = [node("a"), node("b"), node("c")];
     const edges: LayoutEdge[] = [
       { source: "a", target: "b" },
@@ -64,7 +84,8 @@ describe("layoutNodes", () => {
     ];
     const positions = layoutNodes("data-flow", nodes, edges);
     expect(positions.size).toBe(3);
-    // Grid fallback: first node at the grid origin.
+    expect(positions.get("a")!.x).toBeLessThan(positions.get("b")!.x);
+    expect(positions.get("b")!.x).toBeLessThan(positions.get("c")!.x);
     expect(positions.get("a")).toMatchObject({ x: 120, y: 100 });
   });
 

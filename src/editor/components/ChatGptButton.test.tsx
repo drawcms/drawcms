@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ChatGptButton } from "./ChatGptButton";
@@ -10,9 +10,26 @@ const defaultDeepLink = `codex://browser?url=${encodeURIComponent(
 )}`;
 
 describe("ChatGptButton", () => {
+  // Node's own experimental localStorage global shadows jsdom's, so the
+  // built-in isn't the real Storage backing the "connected" persistence
+  // this component relies on — stub it explicitly.
+  beforeEach(() => {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        clear: () => values.clear(),
+        getItem: (key: string) => values.get(key) ?? null,
+        removeItem: (key: string) => values.delete(key),
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+  });
+
   afterEach(() => {
     cleanup();
     sessionStorage.clear();
+    window.localStorage.clear();
     vi.restoreAllMocks();
   });
 
@@ -66,6 +83,23 @@ describe("ChatGptButton", () => {
     await screen.findByRole("button", { name: /connected.*prompt guide/i });
     expect(screen.queryByRole("link")).toBeNull();
     expect(document.querySelector(".dm-chatgpt-shine")).toBeNull();
+  });
+
+  it("stays connected after navigating to a URL without the flag", async () => {
+    // First mount observes the flag straight off the agent-auth redirect.
+    window.history.replaceState({}, "", "/editor/?webmcpconnected=true");
+    const { unmount } = render(<ChatGptButton />);
+    await screen.findByRole("button", { name: /connected.*prompt guide/i });
+    unmount();
+    cleanup();
+
+    // Simulate in-app navigation: same browsing context, but the next page
+    // (or the editor again without the query string) carries no flag.
+    window.history.replaceState({}, "", "/editor/other-diagram-id");
+    render(<ChatGptButton />);
+
+    expect(await screen.findByRole("button", { name: /connected.*prompt guide/i })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /draw with chatgpt/i })).toBeNull();
   });
 
   it("auto-opens the prompt guide once per session in the connected state", async () => {

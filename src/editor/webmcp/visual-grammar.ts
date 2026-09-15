@@ -1,22 +1,18 @@
+import { nodeBox } from "./routing";
 import { SHAPE_CATEGORIES } from "../components/shapes/catalog";
-import { getNodeSize } from "../constants";
+import { SEMANTIC_CONTAINER_TYPES } from "../components/shapes/semantic-elements";
 import type { DrawCMSDocument } from "../document/schema";
+import {
+  STRUCTURAL_NOTATION_DIAGRAM_TYPES,
+  type EdgeNotation,
+  type RouteIssueCode,
+  type VisualDiagramType,
+} from "../document/diagram-types";
 import { isSequenceEdgeType } from "../types";
 import { sequenceRowFromHandle } from "../sequence-edges";
 
-export const VISUAL_DIAGRAM_TYPES = [
-  "general",
-  "flowchart",
-  "sequence",
-  "architecture",
-  "data-flow",
-  "lifecycle",
-  "uml",
-  "bpmn",
-  "entity-relationship",
-] as const;
-
-export type VisualDiagramType = (typeof VISUAL_DIAGRAM_TYPES)[number];
+export { VISUAL_DIAGRAM_TYPES } from "../document/diagram-types";
+export type { VisualDiagramType } from "../document/diagram-types";
 export type VisualElementKind = "node" | "connector" | "dynamic";
 export type WebMCPBuildSupport = "full" | "requires-asset";
 
@@ -55,6 +51,8 @@ export interface VisualRelationshipGrammar {
   recommendedMotionPreset?: string;
   routing: "straight" | "elbow" | "curve";
   loop: boolean;
+  /** The `notation` value to pass for this relationship on a built connector. */
+  notation: EdgeNotation;
 }
 
 export interface VisualGrammarIssue {
@@ -175,7 +173,7 @@ const CATEGORY_DEFAULTS: Record<
     purpose: "A UML modeling element.",
     mostlyUsedFor: ["software design", "actors and components", "state or class models"],
     avoidFor: ["informal decoration"],
-    diagramTypes: ["uml", "architecture"],
+    diagramTypes: ["uml", "architecture", "use-case"],
     suitableMotionPresets: ["Pulse Node"],
     motionGuidance: "Use motion only to explain a runtime interaction or active state.",
   },
@@ -241,7 +239,7 @@ const ELEMENT_OVERRIDES: Record<string, ElementOverride> = {
     purpose: "A structured table with named columns and data types.",
     mostlyUsedFor: ["database schemas", "records", "tabular models"],
     avoidFor: ["generic databases without column detail"],
-    diagramTypes: ["entity-relationship", "data-flow"],
+    diagramTypes: ["entity-relationship", "database-model", "data-flow"],
     suitableMotionPresets: [],
   },
   image: {
@@ -547,6 +545,30 @@ export const VISUAL_RELATIONSHIP_REGISTRY: VisualRelationshipGrammar[] = [
   ),
   relationship("error", "A failed, rejected, or exceptional path.", undefined, "Pulse"),
   relationship("cycle", "A repeated loop, polling path, or circulation.", undefined, "Orbit", true),
+  // Structural relationships. These describe how two elements are related
+  // rather than something happening between them at runtime, so they carry no
+  // motion and no arrowhead — an animated arrow would imply an order that a
+  // structural diagram does not describe.
+  structuralRelationship(
+    "association",
+    "An undirected structural link: an ER relationship, a UML association, or an actor's participation in a use case.",
+    "association",
+  ),
+  structuralRelationship(
+    "include",
+    "A use case that always incorporates another use case's behavior. Points from the base goal to the included goal.",
+    "include",
+  ),
+  structuralRelationship(
+    "extend",
+    "A use case that conditionally extends another. Points from the extension to the base goal.",
+    "extend",
+  ),
+  structuralRelationship(
+    "message-flow",
+    "A BPMN message crossing a pool boundary between two participants. Never valid on a gateway.",
+    "message-flow",
+  ),
 ];
 
 function relationship(
@@ -567,7 +589,21 @@ function relationship(
     ...(recommendedMotionPreset ? { recommendedMotionPreset } : {}),
     routing: id === "dependency" || id === "cycle" ? "curve" : "straight",
     loop,
+    notation: "directed",
   };
+}
+
+/**
+ * A relationship that exists in the model rather than at runtime. It routes as
+ * an elbow (structural diagrams read as orthogonal schematics, not flows),
+ * never loops, and recommends no motion preset.
+ */
+function structuralRelationship(
+  id: string,
+  purpose: string,
+  notation: EdgeNotation,
+): VisualRelationshipGrammar {
+  return { id, purpose, routing: "elbow", loop: false, notation };
 }
 
 const ELEMENTS_BY_ID = new Map(VISUAL_ELEMENT_REGISTRY.map((entry) => [entry.id, entry]));
@@ -594,73 +630,305 @@ function includesAny(value: string, candidates: string[]): boolean {
   return candidates.some((candidate) => value.includes(candidate));
 }
 
+/**
+ * Flatten a role/label to space-delimited words for whole-word matching.
+ *
+ * Punctuation becomes a space so "third-party API" reads as the three words
+ * "third party api", and the result is padded so a term can be matched with
+ * surrounding spaces. Without this, substring matching picks the wrong shape
+ * for innocent labels: "Build pipeline" contains "ui" and "Circuit breaker"
+ * contains "ui", so both used to classify as a frontend.
+ */
+function searchableWords(...values: Array<string | undefined>): string {
+  const flattened = values
+    .map((value) => normalize(value))
+    .join(" ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return ` ${flattened} `;
+}
+
+/**
+ * Whole-word / whole-phrase match against text from `searchableWords`,
+ * tolerating a simple plural so "Dashboards" still matches "dashboard".
+ */
+function matchesAny(text: string, terms: string[]): boolean {
+  return terms.some((term) => new RegExp(`\\s${term}(?:s|es)?\\s`).test(text));
+}
+
+/**
+ * Pick the element that best represents a described thing.
+ *
+ * Both `role` and `label` are searched. The role is the stronger hint so it is
+ * listed first, but the label is never discarded — an entity given
+ * `{ role: "component", label: "Postgres" }` should still be drawn as a
+ * datastore, and the previous `role || label` meant the label was invisible
+ * whenever a role was supplied at all.
+ */
 function chooseElementId(diagramType: VisualDiagramType, role: string, label: string): string {
-  const meaning = `${normalize(role)} ${normalize(label)}`;
+  const text = searchableWords(role, label);
+  // A trailing question mark is the clearest signal a step is a branch, and it
+  // survives wording the keyword lists cannot anticipate ("Payment accepted?").
+  const asksQuestion = /\?/.test(role) || /\?/.test(label);
+  // A named technology should be drawn as itself rather than as a generic box.
+  const branded = BRANDED_INFRA_ELEMENTS.find((entry) => matchesAny(text, entry.terms));
+
   if (diagramType === "sequence") {
-    return includesAny(meaning, ["user", "actor", "person", "operator", "customer"])
-      ? "sequence-actor"
-      : "sequence-participant";
+    // A software participant can easily carry a human-sounding name ("User
+    // service"), so an explicit software signal is checked first.
+    if (
+      matchesAny(text, ["service", "api", "server", "system", "worker", "job", ...DATASTORE_TERMS])
+    )
+      return "sequence-participant";
+    return matchesAny(text, ACTOR_TERMS) ? "sequence-actor" : "sequence-participant";
   }
   if (diagramType === "architecture") {
-    if (includesAny(meaning, ["browser", "frontend", "mobile", "client", "ui"]))
+    if (branded) return branded.id;
+    if (
+      matchesAny(text, [
+        "browser",
+        "frontend",
+        "front end",
+        "mobile",
+        "client",
+        "ui",
+        "spa",
+        "storefront",
+        "web app",
+        "webapp",
+        "portal",
+      ])
+    )
       return "arch-frontend";
-    if (includesAny(meaning, ["database", "store", "warehouse", "lake", "postgres", "mysql"]))
-      return "arch-database";
-    if (includesAny(meaning, ["queue", "topic", "stream", "event bus", "message bus"]))
-      return "arch-messagebus";
-    if (includesAny(meaning, ["auth", "security", "firewall", "gateway"])) return "arch-security";
-    if (includesAny(meaning, ["external", "third party", "partner"])) return "arch-external";
-    if (includesAny(meaning, ["cloud", "hosted", "platform"])) return "arch-cloud";
+    if (matchesAny(text, DATASTORE_TERMS)) return "arch-database";
+    if (matchesAny(text, MESSAGING_TERMS)) return "arch-messagebus";
+    // "gateway" deliberately excluded: an API gateway routes traffic, it is not
+    // a security control, and drawing it with the shield shape misleads.
+    if (
+      matchesAny(text, [
+        "auth",
+        "authentication",
+        "authorization",
+        "oauth",
+        "sso",
+        "identity",
+        "firewall",
+        "waf",
+        "security",
+        "iam",
+        "secret",
+        "vault",
+        "certificate",
+      ])
+    )
+      return "arch-security";
+    if (matchesAny(text, ["external", "third party", "partner", "vendor", "saas", "upstream"]))
+      return "arch-external";
+    if (matchesAny(text, ["cloud", "hosted", "platform", "serverless"])) return "arch-cloud";
     return "arch-backend";
   }
   if (diagramType === "data-flow") {
-    if (includesAny(meaning, ["source", "producer", "input"])) return "data-source";
-    if (includesAny(meaning, ["database", "store", "warehouse", "lake"])) return "data-store";
-    if (includesAny(meaning, ["stream", "queue", "topic", "event"])) return "data-stream";
-    if (includesAny(meaning, ["sink", "consumer", "destination", "output"])) return "data-sink";
-    if (includesAny(meaning, ["protected", "private", "pii", "encrypted"])) return "data-protected";
+    if (
+      matchesAny(text, ["sink", "consumer", "destination", "output", "dashboard", "report", "bi"])
+    )
+      return "data-sink";
+    if (matchesAny(text, ["protected", "private", "pii", "encrypted", "vault", "secret"]))
+      return "data-protected";
+    if (matchesAny(text, DATASTORE_TERMS)) return "data-store";
+    if (matchesAny(text, [...MESSAGING_TERMS, "ingest", "feed"])) return "data-stream";
+    if (
+      matchesAny(text, [
+        "source",
+        "producer",
+        "input",
+        "app",
+        "client",
+        "device",
+        "sensor",
+        "upload",
+      ])
+    )
+      return "data-source";
     return "data-transform";
   }
   if (diagramType === "lifecycle") {
-    if (includesAny(meaning, ["start", "initial", "begin"])) return "lifecycle-start";
-    if (includesAny(meaning, ["wait", "pending", "retry", "pause"])) return "lifecycle-waiting";
-    if (includesAny(meaning, ["decision", "condition", "branch"])) return "lifecycle-decision";
-    if (includesAny(meaning, ["success", "complete", "passed", "done"])) return "lifecycle-success";
-    if (includesAny(meaning, ["fail", "error", "rejected"])) return "lifecycle-failure";
-    if (includesAny(meaning, ["external", "dependency"])) return "lifecycle-external";
-    return "lifecycle-active";
+    if (asksQuestion || matchesAny(text, ["decision", "condition", "branch", "check"]))
+      return "lifecycle-decision";
+    if (matchesAny(text, ["start", "initial", "begin", "draft", "new", "created"]))
+      return "lifecycle-start";
+    if (
+      matchesAny(text, [
+        "wait",
+        "waiting",
+        "pending",
+        "retry",
+        "pause",
+        "review",
+        "queued",
+        "blocked",
+        "hold",
+        "scheduled",
+      ])
+    )
+      return "lifecycle-waiting";
+    if (
+      matchesAny(text, [
+        "success",
+        "complete",
+        "completed",
+        "passed",
+        "done",
+        "published",
+        "live",
+        "approved",
+      ])
+    )
+      return "lifecycle-success";
+    if (matchesAny(text, ["fail", "failed", "failure", "error", "rejected", "denied"]))
+      return "lifecycle-failure";
+    if (matchesAny(text, ["external", "dependency", "third party"])) return "lifecycle-external";
+    if (matchesAny(text, ["active", "running", "progress", "processing", "open"]))
+      return "lifecycle-active";
+    // An unclassified state is exactly what lifecycle-neutral is for; calling it
+    // "Active" would assert progress the label never claimed.
+    return "lifecycle-neutral";
   }
   if (diagramType === "flowchart") {
-    if (includesAny(meaning, ["start", "end", "finish", "terminator"])) return "terminator";
-    if (includesAny(meaning, ["decision", "condition", "branch", "if"])) return "decision";
-    if (includesAny(meaning, ["database", "store", "persist"])) return "database";
-    if (includesAny(meaning, ["document", "report", "file"])) return "document";
-    if (includesAny(meaning, ["input", "output", "data"])) return "data";
+    if (asksQuestion || matchesAny(text, ["decision", "condition", "branch", "if", "whether"]))
+      return "decision";
+    if (matchesAny(text, ["start", "end", "finish", "terminator", "begin", "stop"]))
+      return "terminator";
+    if (matchesAny(text, ["wait", "delay", "sleep", "pause", "timeout"])) return "delay";
+    if (matchesAny(text, ["manual review", "manual", "by hand", "offline"]))
+      return "manual-operation";
+    if (matchesAny(text, ["enter", "form", "user input", "keyed", "type in"]))
+      return "manual-input";
+    if (matchesAny(text, ["display", "show", "screen", "render"])) return "display";
+    if (matchesAny(text, ["initialize", "initialise", "setup", "prepare", "configure"]))
+      return "preparation";
+    if (matchesAny(text, [...DATASTORE_TERMS, "persist", "lookup", "query"])) return "database";
+    if (matchesAny(text, ["document", "report", "invoice", "receipt", "file", "print"]))
+      return "document";
+    if (matchesAny(text, ["input", "output", "data", "payload"])) return "data";
     return "process";
   }
   if (diagramType === "bpmn") {
-    if (includesAny(meaning, ["start", "begin"])) return "bpmn-start";
-    if (includesAny(meaning, ["end", "finish"])) return "bpmn-end";
-    if (includesAny(meaning, ["parallel", "fork", "join"])) return "bpmn-gateway-parallel";
-    if (includesAny(meaning, ["decision", "exclusive", "xor"])) return "bpmn-gateway-exclusive";
+    if (asksQuestion || matchesAny(text, ["decision", "exclusive", "xor", "gateway"]))
+      return "bpmn-gateway-exclusive";
+    if (matchesAny(text, ["parallel", "fork", "join", "and gateway"]))
+      return "bpmn-gateway-parallel";
+    if (matchesAny(text, ["inclusive", "or gateway"])) return "bpmn-gateway-inclusive";
+    if (matchesAny(text, ["start", "begin", "received", "submitted", "triggered", "requested"]))
+      return "bpmn-start";
+    if (
+      matchesAny(text, [
+        "end",
+        "finish",
+        "closed",
+        "close",
+        "completed",
+        "cancelled",
+        "canceled",
+        "archived",
+      ])
+    )
+      return "bpmn-end";
+    if (matchesAny(text, ["timer", "intermediate", "boundary event", "escalation"]))
+      return "bpmn-intermediate";
     return "bpmn-task";
   }
+  if (diagramType === "use-case") {
+    // The goal is checked first: "View user profile" is a use case that merely
+    // mentions a user, not an actor.
+    if (matchesAny(text, ["use case", "goal", "capability", "feature"])) return "use-case";
+    return matchesAny(text, [...ACTOR_TERMS, "external system", "system"]) ? "actor" : "use-case";
+  }
+  if (diagramType === "database-model") return "table";
   if (diagramType === "entity-relationship") {
-    if (includesAny(meaning, ["relationship", "relation"])) return "er-relationship";
-    if (includesAny(meaning, ["key", "primary"])) return "er-key-attribute";
-    if (includesAny(meaning, ["attribute", "field", "column"])) return "er-attribute";
+    if (matchesAny(text, ["weak entity", "weak"])) return "er-weak-entity";
+    if (matchesAny(text, ["relationship", "relation"])) return "er-relationship";
+    if (matchesAny(text, ["multivalued", "multi valued", "many valued"])) return "er-multivalued";
+    if (matchesAny(text, ["derived", "computed", "calculated"])) return "er-derived";
+    if (matchesAny(text, ["key", "primary", "identifier"])) return "er-key-attribute";
+    if (matchesAny(text, ["attribute", "field", "column", "property"])) return "er-attribute";
     return "er-entity";
   }
   if (diagramType === "uml") {
-    if (includesAny(meaning, ["user", "actor", "person"])) return "actor";
-    if (includesAny(meaning, ["interface", "contract"])) return "uml-interface";
-    if (includesAny(meaning, ["package", "module"])) return "uml-package";
-    if (includesAny(meaning, ["state"])) return "uml-state";
-    if (includesAny(meaning, ["class", "model", "entity"])) return "uml-class";
-    return "uml-component";
+    if (matchesAny(text, ["use case", "goal"])) return "use-case";
+    // Narrower than ACTOR_TERMS on purpose: "Customer" and "User" are ordinary
+    // class names in a domain model, so only an explicit actor word wins here.
+    if (matchesAny(text, ["actor", "person", "human", "operator"])) return "actor";
+    if (matchesAny(text, ["interface", "contract", "port", "protocol"])) return "uml-interface";
+    if (matchesAny(text, ["package", "module", "namespace"])) return "uml-package";
+    if (matchesAny(text, ["state", "status"])) return "uml-state";
+    if (matchesAny(text, ["note", "comment"])) return "uml-note";
+    if (matchesAny(text, ["artifact", "binary", "jar", "config file"])) return "uml-artifact";
+    if (matchesAny(text, ["instance", "object"])) return "uml-object";
+    if (matchesAny(text, ["component", "adapter", "subsystem", "deployable"]))
+      return "uml-component";
+    // A plain domain noun is a class, not a deployable component.
+    return "uml-class";
   }
+  // `general` has proper elements for the common cases; round-rect's own
+  // avoidFor calls out decisions, stores and actors, so falling back to it for
+  // exactly those was self-contradicting.
+  if (asksQuestion || matchesAny(text, ["decision", "condition", "branch"])) return "diamond";
+  if (matchesAny(text, DATASTORE_TERMS)) return "database";
+  if (matchesAny(text, ACTOR_TERMS)) return "actor";
+  if (matchesAny(text, ["note", "comment", "annotation"])) return "note";
+  if (matchesAny(text, ["start", "end", "terminator"])) return "terminator";
   return "round-rect";
 }
+
+const ACTOR_TERMS = ["user", "actor", "person", "operator", "customer", "admin", "human"];
+
+const DATASTORE_TERMS = [
+  "database",
+  "db",
+  "datastore",
+  "data store",
+  "store",
+  "storage",
+  "warehouse",
+  "data lake",
+  "lake",
+  "table",
+  "bucket",
+  "object storage",
+  "blob storage",
+  "cache",
+  "persistence",
+];
+
+const MESSAGING_TERMS = [
+  "queue",
+  "topic",
+  "stream",
+  "event bus",
+  "message bus",
+  "broker",
+  "pubsub",
+  "pub sub",
+  "event",
+];
+
+/**
+ * Technologies that ship their own recognizable mark. An agent naming one of
+ * these should get that logo rather than a generic service box, which is the
+ * difference between a reader recognizing "Redis" at a glance and reading it.
+ */
+const BRANDED_INFRA_ELEMENTS: Array<{ id: string; terms: string[] }> = [
+  { id: "infra-redis", terms: ["redis"] },
+  { id: "infra-postgresql", terms: ["postgres", "postgresql"] },
+  { id: "infra-mongodb", terms: ["mongo", "mongodb"] },
+  { id: "infra-elasticsearch", terms: ["elasticsearch", "opensearch"] },
+  { id: "infra-rabbitmq", terms: ["rabbitmq", "rabbit"] },
+  { id: "infra-kubernetes", terms: ["kubernetes", "k8s"] },
+  { id: "infra-docker", terms: ["docker", "container runtime"] },
+  { id: "infra-nginx", terms: ["nginx"] },
+  { id: "infra-terraform", terms: ["terraform"] },
+  { id: "infra-grafana", terms: ["grafana"] },
+];
 
 /** Classify free-text relationship intent into a registered semantic kind. */
 export function normalizeRelationshipKind(
@@ -669,6 +937,16 @@ export function normalizeRelationshipKind(
   diagramType: VisualDiagramType,
 ) {
   const meaning = `${normalize(kind)} ${normalize(label)}`;
+  // Structural notations are matched first: in a use-case or BPMN diagram the
+  // word "include" or "message" names the notation itself, and reading it as a
+  // runtime flow would attach motion to a static relationship.
+  if (diagramType === "use-case" || diagramType === "uml") {
+    if (includesAny(meaning, ["include"])) return "include";
+    if (includesAny(meaning, ["extend"])) return "extend";
+  }
+  if (diagramType === "bpmn" && includesAny(meaning, ["message"])) return "message-flow";
+  if (STRUCTURAL_NOTATION_DIAGRAM_TYPES.has(diagramType) && includesAny(meaning, ["association"]))
+    return "association";
   if (includesAny(meaning, ["response", "return", "reply", "result"])) return "response";
   if (includesAny(meaning, ["async", "event", "publish", "signal", "notify"])) return "async";
   if (includesAny(meaning, ["self", "internal", "recursive"])) return "self-call";
@@ -678,8 +956,40 @@ export function normalizeRelationshipKind(
   if (includesAny(meaning, ["dependency", "depends", "uses"])) return "dependency";
   if (includesAny(meaning, ["transition", "state change"])) return "state-transition";
   if (includesAny(meaning, ["data", "stream", "read", "write", "replicate"])) return "data-flow";
+  // A structural notation has no runtime meaning to fall back on.
+  if (STRUCTURAL_NOTATION_DIAGRAM_TYPES.has(diagramType)) return "association";
   return diagramType === "sequence" ? "request" : "data-flow";
 }
+
+/**
+ * Per-notation authoring guidance surfaced by `drawcms_recommend_visuals`.
+ *
+ * Typed as a total record rather than a Partial so adding a diagram type to
+ * `VISUAL_DIAGRAM_TYPES` fails the build until its conventions are written —
+ * a missing entry used to silently degrade to generic advice.
+ */
+export const DIAGRAM_CONVENTIONS: Record<VisualDiagramType, string> = {
+  general:
+    "Group related elements and keep one reading direction. Give every connector a label that names the relationship, minimize crossings, and prefer a few well-named elements over many vague ones.",
+  flowchart:
+    "Use terminators for start/end, rectangles for actions, diamonds for decisions, parallelograms for input/output. Read left-to-right or top-to-bottom; label every decision branch; route retries outside the main flow.",
+  sequence:
+    "Participants across the top; time flows downward; use native lifelines and activation bars. Keep messages in chronological order, pair each call with its return, and stay within the 12 message rows.",
+  architecture:
+    "Group elements by tier or trust boundary and keep dependency direction consistent (clients above or left of the services they call). Label connectors with the protocol or payload, name the technology on the element, and keep datastores visually distinct from services.",
+  bpmn: "Use start/end events, tasks and explicit XOR/parallel gateways. Sequence flows stay within a participant; dashed message flows connect different participants and never gateways. Keep lanes by responsibility; label conditions beside outgoing gateway flows. Pools/lanes require explicit grouping, not inferred ownership.",
+  uml: "Pick one UML view per diagram — classes, components or states — and do not mix them. Associations are undirected lines without arrowheads; keep the model static because a structural diagram describes no runtime order. Name interfaces by their contract and packages by their module.",
+  "use-case":
+    "Place actors outside the system scope and use-case ovals in a separate column. Name goals with verb phrases. Actor associations are undirected; dashed «include» points from base to included goal; «extend» points from extension to base. Do not depict chronological control flow.",
+  "entity-relationship":
+    "Use entities with named attributes and marked primary keys; relationship diamonds are for conceptual Chen notation. State both endpoint multiplicities using sourceCardinality and targetCardinality. Keep the model static; avoid mixing Chen attributes with physical schema tables.",
+  "database-model":
+    "Use table nodes with rows containing actual column names and SQL types; mark PK/FK in names. Connect related tables and supply both endpoint cardinalities; label foreign-key mappings explicitly (orders.user_id → users.id). Represent many-to-many relations through a junction table in physical schemas. Multiplicity is rendered as endpoint-qualified text, not crow's-foot glyphs.",
+  "data-flow":
+    "Separate external sources/sinks, transformations and data stores. Label connectors with the data carried, not control conditions; keep processing direction consistent.",
+  lifecycle:
+    "Use named states and label transitions with their trigger or guard. Keep return transitions outside the main progression.",
+};
 
 export function recommendVisualGrammar(input: {
   diagramType: VisualDiagramType;
@@ -717,7 +1027,9 @@ export function recommendVisualGrammar(input: {
     );
     const grammar =
       RELATIONSHIPS_BY_ID.get(relationshipId) ?? RELATIONSHIPS_BY_ID.get("data-flow")!;
-    const motionPreset = input.animationGoal === "none" ? null : grammar.recommendedMotionPreset;
+    const structural = STRUCTURAL_NOTATION_DIAGRAM_TYPES.has(input.diagramType);
+    const motionPreset =
+      input.animationGoal === "none" || structural ? null : grammar.recommendedMotionPreset;
     return {
       relationshipId: item.id ?? `relationship-${index + 1}`,
       semanticType: grammar.id,
@@ -725,7 +1037,10 @@ export function recommendVisualGrammar(input: {
         input.diagramType === "sequence"
           ? (grammar.sequenceConnectorType ?? "sequence-message")
           : null,
-      routing: grammar.routing,
+      routing: input.diagramType === "sequence" ? grammar.routing : "elbow",
+      // The registry owns the notation, so a structural diagram cannot end up
+      // recommending a directed arrow for a relationship that has none.
+      notation: grammar.notation,
       motionPreset: motionPreset ?? null,
       // Loop whenever a flow preset is actually recommended, except sequence
       // diagrams whose numbered message rows must play once in order (the
@@ -740,10 +1055,9 @@ export function recommendVisualGrammar(input: {
 
   return {
     diagramType: input.diagramType,
-    layout:
-      input.diagramType === "sequence"
-        ? "Participants across the top; time flows downward; use native lifelines and activation bars."
-        : "Use the semantic conventions of the selected diagram type and minimize connector crossings.",
+    layout: DIAGRAM_CONVENTIONS[input.diagramType],
+    authoring:
+      "Pass diagramType to drawcms_replace_diagram, omit positions for automatic placement, then inspect returned validation. Explicit coordinates/routing are respected. Resolve warnings before presenting.",
     animation:
       input.animationGoal === "explain-flow"
         ? "Flow animations loop continuously and start in relationship order; presentation steps sequence the narration."
@@ -767,6 +1081,8 @@ export function inferDiagramTypeFromNodeTypes(
 ): VisualDiagramType {
   if (hasSequenceEdge || nodeTypes.some((type) => type.startsWith("sequence-"))) return "sequence";
   if (nodeTypes.some((type) => type.startsWith("bpmn-"))) return "bpmn";
+  if (nodeTypes.includes("table")) return "database-model";
+  if (nodeTypes.includes("use-case")) return "use-case";
   if (nodeTypes.some((type) => type.startsWith("er-"))) return "entity-relationship";
   if (nodeTypes.some((type) => type.startsWith("data-"))) return "data-flow";
   if (nodeTypes.some((type) => type.startsWith("lifecycle-"))) return "lifecycle";
@@ -794,9 +1110,172 @@ export function inferDiagramTypeFromNodeTypes(
 }
 
 export function inferVisualDiagramType(document: DrawCMSDocument): VisualDiagramType {
+  if (document.meta.diagramType) return document.meta.diagramType;
   const nodeTypes = document.nodes.map((node) => node.data.type);
   const sequenceEdge = document.edges.some((edge) => isSequenceEdgeType(edge.data?.sequenceType));
   return inferDiagramTypeFromNodeTypes(nodeTypes, sequenceEdge);
+}
+
+/**
+ * How each routing failure is reported to the agent.
+ *
+ * A total record, so adding a code to `ROUTE_ISSUE_CODES` fails the build until
+ * it has a message. The previous binary check silently described any new code
+ * as a node collision.
+ */
+const ROUTE_ISSUE_REPORTS: Record<RouteIssueCode, { message: string; suggestedFix: string }> = {
+  CONNECTOR_NODE_COLLISION: {
+    message: "This connector could not avoid every node.",
+    suggestedFix:
+      "Run drawcms_tidy_diagram to re-space the diagram, or simplify this relationship.",
+  },
+  CONNECTOR_LABEL_COLLISION: {
+    message: "No clear label position was found beside this connector.",
+    suggestedFix:
+      "Shorten the label or run drawcms_tidy_diagram to open up space around this connector.",
+  },
+};
+
+/**
+ * Does this connector label state a multiplicity?
+ *
+ * Two conventions are both correct and both accepted: the endpoint-qualified
+ * text this build composes from `sourceCardinality`/`targetCardinality`
+ * (`Customer [1] — Order [0..*]`), and the bare Chen marker a conceptual ER
+ * diagram writes against a relationship diamond (`1`, `N`, `0..*`). Requiring
+ * only the first would flag correct Chen notation as a defect.
+ */
+function statesMultiplicity(label: string): boolean {
+  if (/\[[^\]]+\]/.test(label)) return true;
+  return label
+    .split("\n")
+    .some((line) => /^\s*(\*|[0-9]+|[nm]|[0-9]+\.\.(\*|[0-9]+))\s*$/i.test(line));
+}
+
+/**
+ * The coarse thing a shape asserts about whatever it contains.
+ *
+ * Used to catch an element whose meaning contradicts its own label. Only
+ * unambiguous shapes are classified; anything left `other` is never flagged,
+ * which keeps the check quiet for legitimate choices (a `uml-class` named
+ * "Customer" is a domain class, not a person).
+ */
+type ElementShapeRole = "decision" | "datastore" | "actor" | "service" | "annotation" | "other";
+
+const DECISION_SHAPES = new Set([
+  "decision",
+  "diamond",
+  "lifecycle-decision",
+  "bpmn-gateway-exclusive",
+  "bpmn-gateway-inclusive",
+  "bpmn-gateway-parallel",
+]);
+
+const DATASTORE_SHAPES = new Set([
+  "database",
+  "cylinder",
+  "internal-storage",
+  "arch-database",
+  "data-store",
+  "table",
+  "infra-redis",
+  "infra-postgresql",
+  "infra-mongodb",
+  "infra-elasticsearch",
+  "aws-s3",
+  "aws-rds",
+  "aws-dynamodb",
+  "aws-aurora",
+  "aws-redshift",
+  "gcp-cloud-storage",
+  "gcp-cloud-sql",
+  "gcp-bigquery",
+  "gcp-firestore",
+  "gcp-spanner",
+  "gcp-memorystore",
+  "azure-blob-storage",
+  "azure-sql-db",
+  "azure-cosmos-db",
+]);
+
+const ACTOR_SHAPES = new Set(["actor", "sequence-actor"]);
+
+const SERVICE_SHAPES = new Set([
+  "arch-backend",
+  "arch-frontend",
+  "arch-external",
+  "arch-cloud",
+  "arch-security",
+  "uml-component",
+  "bpmn-task",
+  "process",
+  "sequence-participant",
+  "data-transform",
+]);
+
+const ANNOTATION_SHAPES = new Set([
+  "note",
+  "uml-note",
+  "sequence-note",
+  "callout",
+  "text",
+  "annotation-callout",
+  "annotation-legend",
+  "annotation-summary",
+  "annotation-source",
+  "annotation-owner",
+  "annotation-technology",
+]);
+
+/** Labels that describe a running service rather than stored data. */
+const SERVICE_LABEL_TERMS = [
+  "dns resolver",
+  "web server",
+  "api server",
+  "service",
+  "api",
+  "worker",
+  "gateway",
+  "resolver",
+];
+
+function elementShapeRole(type: string): ElementShapeRole {
+  if (DECISION_SHAPES.has(type)) return "decision";
+  if (DATASTORE_SHAPES.has(type)) return "datastore";
+  if (ACTOR_SHAPES.has(type)) return "actor";
+  if (ANNOTATION_SHAPES.has(type)) return "annotation";
+  if (SERVICE_SHAPES.has(type)) return "service";
+  return "other";
+}
+
+/**
+ * Is this label nothing but a role word — "User", "Store admin" — rather than a
+ * name that merely contains one? "Customer service" names a service and a
+ * `customers` table names data; only a bare role is a person.
+ */
+function describesOnlyARole(labelWords: string): boolean {
+  const words = labelWords.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 3) return false;
+  return words.every(
+    (word) =>
+      ROLE_QUALIFIERS.has(word) || ACTOR_TERMS.some((term) => word === term || word === `${term}s`),
+  );
+}
+
+/** Words that may accompany a bare role without making it something else. */
+const ROLE_QUALIFIERS = new Set(["the", "a", "an", "end", "external", "internal", "store", "site"]);
+
+/**
+ * Does this element exist to enclose other elements?
+ *
+ * Both the semantic frames (`data-stage`, the boundary family) and the plain
+ * grouping shapes qualify. They render a large titled frame with the label in a
+ * corner, which reads as an empty box when nothing is placed inside.
+ */
+function isContainerElement(type: string): boolean {
+  return (
+    SEMANTIC_CONTAINER_TYPES.has(type) || ELEMENTS_BY_ID.get(type)?.categoryId === "containers"
+  );
 }
 
 export function validateDiagramVisualGrammar(
@@ -849,11 +1328,9 @@ export function validateDiagramVisualGrammar(
       }
     }
 
-    const label = normalize(node.data.label);
-    if (
-      (node.data.type === "database" || node.data.type === "cylinder") &&
-      includesAny(label, ["dns resolver", "web server", "api server", "service"])
-    ) {
+    const shapeRole = elementShapeRole(node.data.type);
+    const labelWords = searchableWords(node.data.label);
+    if (shapeRole === "datastore" && matchesAny(labelWords, SERVICE_LABEL_TERMS)) {
       issues.push({
         severity: "warning",
         code: "DATASTORE_SEMANTIC_MISMATCH",
@@ -864,6 +1341,238 @@ export function validateDiagramVisualGrammar(
             ? "Use sequence-participant."
             : "Use arch-backend or another service/component element.",
       });
+    }
+    // The reverse of the rule above, plus the two other cases where a label
+    // states plainly what it is and the chosen shape says otherwise. An agent
+    // passing an explicit type gets no other feedback that the shape misreads,
+    // because the type is only validated for membership in the registry.
+    const mentionsService = matchesAny(labelWords, SERVICE_LABEL_TERMS);
+    if (shapeRole === "service" && matchesAny(labelWords, DATASTORE_TERMS) && !mentionsService) {
+      issues.push({
+        severity: "warning",
+        code: "LABEL_DESCRIBES_DATASTORE",
+        elementId: node.id,
+        message: `${node.data.label} is drawn as a service even though its label names stored data.`,
+        suggestedFix:
+          "Use a datastore element such as arch-database, data-store, or the matching provider icon.",
+      });
+    }
+    // Only when the label is *nothing but* a role word. "Customer service" is a
+    // service and a table of `customers` is data, so neither is an actor.
+    if (shapeRole === "service" && describesOnlyARole(labelWords)) {
+      issues.push({
+        severity: "warning",
+        code: "LABEL_DESCRIBES_ACTOR",
+        elementId: node.id,
+        message: `${node.data.label} is drawn as a system element even though its label names a person or role.`,
+        suggestedFix: diagramType === "sequence" ? "Use sequence-actor." : "Use the actor element.",
+      });
+    }
+    if (/\?/.test(node.data.label) && shapeRole !== "decision" && shapeRole !== "annotation") {
+      issues.push({
+        severity: "warning",
+        code: "LABEL_ASKS_A_QUESTION",
+        elementId: node.id,
+        message: `${node.data.label} reads as a branch but is not drawn as a decision.`,
+        suggestedFix:
+          "Use a decision element (decision, lifecycle-decision, or a BPMN gateway) and label each outgoing branch.",
+      });
+    }
+    // An element declares which notations it belongs to; using one outside them
+    // mixes visual languages in a single diagram.
+    if (!grammar.diagramTypes.includes(diagramType)) {
+      issues.push({
+        severity: "warning",
+        code: "ELEMENT_OUTSIDE_NOTATION",
+        elementId: node.id,
+        message: `${grammar.title} is not part of the ${diagramType} notation.`,
+        suggestedFix: `Choose an element whose diagramTypes include ${diagramType}; drawcms_get_visual_grammar with diagramType filters to those.`,
+      });
+    }
+  }
+
+  for (const node of document.nodes) {
+    if (
+      [
+        "decision",
+        "diamond",
+        "lifecycle-decision",
+        "bpmn-gateway-exclusive",
+        "bpmn-gateway-inclusive",
+      ].includes(node.data.type)
+    ) {
+      const outgoing = document.edges.filter((edge) => edge.source === node.id);
+      if (
+        outgoing.length > 1 &&
+        outgoing.some((edge) => !String(edge.label ?? edge.data?.label ?? "").trim())
+      ) {
+        issues.push({
+          severity: "warning",
+          code: "UNLABELED_BRANCH",
+          elementId: node.id,
+          message: "A decision has unlabeled outgoing branches.",
+          suggestedFix:
+            "Label each alternative with an unambiguous condition, such as Approved / Rejected or Yes / No.",
+        });
+      }
+    }
+  }
+  for (const edge of document.edges) {
+    const route = edge.data?.diagramRoute;
+    if (route) {
+      const changed = [
+        [edge.source, route.sourceBounds],
+        [edge.target, route.targetBounds],
+      ] as const;
+      const stale =
+        changed.some(([id, bounds]) => {
+          const node = document.nodes.find((candidate) => candidate.id === id);
+          if (!node || !bounds) return false;
+          const box = nodeBox(node);
+          return (
+            box.x !== bounds.x ||
+            box.y !== bounds.y ||
+            box.width !== bounds.width ||
+            box.height !== bounds.height
+          );
+        }) ||
+        (route.labelText !== undefined &&
+          route.labelText !== String(edge.label ?? edge.data?.label ?? ""));
+      if (stale)
+        issues.push({
+          severity: "warning",
+          code: "STALE_AUTOMATIC_ROUTE",
+          elementId: edge.id,
+          message: "The connector's endpoints or label changed after automatic layout.",
+          suggestedFix: "Rebuild the layout to recalculate connector and label clearance.",
+        });
+    }
+    for (const code of edge.data?.diagramRoute?.issues ?? [])
+      issues.push({
+        severity: "warning",
+        code,
+        elementId: edge.id,
+        ...ROUTE_ISSUE_REPORTS[code],
+      });
+    if (diagramType === "bpmn") {
+      const source = document.nodes.find((node) => node.id === edge.source);
+      const target = document.nodes.find((node) => node.id === edge.target);
+      if (source?.data.type === "bpmn-end" || target?.data.type === "bpmn-start")
+        issues.push({
+          severity: "warning",
+          code: "BPMN_EVENT_DIRECTION",
+          elementId: edge.id,
+          message:
+            "An end event should not emit sequence flow, and a start event should not receive it.",
+        });
+      if (
+        edge.data?.notation === "message-flow" &&
+        [source, target].some((node) => node?.data.type.startsWith("bpmn-gateway"))
+      )
+        issues.push({
+          severity: "warning",
+          code: "BPMN_GATEWAY_MESSAGE",
+          elementId: edge.id,
+          message: "A BPMN gateway cannot be an endpoint of message flow.",
+        });
+    }
+  }
+
+  // Notation-specific structural checks. These encode the conventions in
+  // DIAGRAM_CONVENTIONS as machine-checkable rules so an agent finds out its
+  // ER model is missing multiplicities in the same round trip that built it.
+  if (diagramType === "database-model" || diagramType === "entity-relationship") {
+    for (const node of document.nodes) {
+      const rows = node.data.rows;
+      if (node.data.type === "table" && Array.isArray(rows)) {
+        if (rows.length === 0) {
+          issues.push({
+            severity: "warning",
+            code: "TABLE_WITHOUT_COLUMNS",
+            elementId: node.id,
+            message: `Table ${node.data.label} declares no columns.`,
+            suggestedFix:
+              "Pass rows with the real column names and SQL types, or use a conceptual ER entity instead.",
+          });
+        } else if (
+          !rows.some((row: { name?: string }) => /\bp\.?k\.?\b|\bprimary\b/i.test(row.name ?? ""))
+        ) {
+          issues.push({
+            severity: "warning",
+            code: "TABLE_WITHOUT_PRIMARY_KEY",
+            elementId: node.id,
+            message: `Table ${node.data.label} does not mark a primary key.`,
+            suggestedFix: "Mark the identifying column, for example \u201cid PK\u201d.",
+          });
+        }
+      }
+      const attributes = node.data.entityAttributes;
+      if (
+        ["er-entity", "er-weak-entity"].includes(node.data.type) &&
+        Array.isArray(attributes) &&
+        attributes.length > 0 &&
+        !attributes.some((attribute: { isKey?: boolean }) => attribute.isKey)
+      ) {
+        issues.push({
+          severity: "suggestion",
+          code: "ENTITY_WITHOUT_KEY_ATTRIBUTE",
+          elementId: node.id,
+          message: `Entity ${node.data.label} has attributes but none is marked as a key.`,
+          suggestedFix: "Set isKey on the attribute that identifies the entity.",
+        });
+      }
+    }
+    for (const edge of document.edges) {
+      const text = String(edge.label ?? edge.data?.label ?? "");
+      if (!statesMultiplicity(text)) {
+        issues.push({
+          severity: "warning",
+          code: "MISSING_CARDINALITY",
+          elementId: edge.id,
+          message: "A relationship does not state its endpoint multiplicities.",
+          suggestedFix:
+            "Pass sourceCardinality and targetCardinality so both ends read unambiguously.",
+        });
+      }
+    }
+  }
+
+  if (diagramType === "use-case") {
+    const typesById = new Map(document.nodes.map((node) => [node.id, node.data.type]));
+    if (document.nodes.length > 0 && !document.nodes.some((node) => node.data.type === "actor")) {
+      issues.push({
+        severity: "warning",
+        code: "USE_CASE_WITHOUT_ACTOR",
+        message: "A use-case diagram has no actor.",
+        suggestedFix: "Add an actor element for whoever pursues these goals.",
+      });
+    }
+    for (const edge of document.edges) {
+      const source = typesById.get(edge.source);
+      const target = typesById.get(edge.target);
+      if (source === "actor" && target === "actor") {
+        issues.push({
+          severity: "warning",
+          code: "USE_CASE_ACTOR_ASSOCIATION",
+          elementId: edge.id,
+          message: "Two actors are associated directly.",
+          suggestedFix:
+            "Connect each actor to the use case it participates in; actors do not interact with each other in this notation.",
+        });
+      }
+      const stereotype = edge.data?.notation;
+      if (
+        (stereotype === "include" || stereotype === "extend") &&
+        (source !== "use-case" || target !== "use-case")
+      ) {
+        issues.push({
+          severity: "warning",
+          code: "USE_CASE_STEREOTYPE_ENDPOINT",
+          elementId: edge.id,
+          message: `\u00ab${stereotype}\u00bb is only valid between two use cases.`,
+          suggestedFix: "Use a plain association for an actor's participation.",
+        });
+      }
     }
   }
 
@@ -959,22 +1668,39 @@ export function validateDiagramVisualGrammar(
     }
   }
 
+  // A grouping element used as a flow step: it draws a large titled frame meant
+  // to enclose other elements, so wiring it between two steps with nothing
+  // inside renders an empty box whose label sits in a corner rather than a
+  // shape that reads as the work it names.
+  const childCounts = new Map<string, number>();
+  for (const node of document.nodes) {
+    if (!node.parentId) continue;
+    childCounts.set(node.parentId, (childCounts.get(node.parentId) ?? 0) + 1);
+  }
+  const connectedIds = new Set(document.edges.flatMap((edge) => [edge.source, edge.target]));
+  for (const node of document.nodes) {
+    if (!isContainerElement(node.data.type)) continue;
+    if ((childCounts.get(node.id) ?? 0) > 0) continue;
+    if (!connectedIds.has(node.id)) continue;
+    const grammar = ELEMENTS_BY_ID.get(node.data.type);
+    issues.push({
+      severity: "warning",
+      code: "CONTAINER_USED_AS_STEP",
+      elementId: node.id,
+      message: `${grammar?.title ?? node.data.type} groups other elements, but ${node.id} is empty and wired in like a step.`,
+      suggestedFix:
+        "Put the elements this frame covers inside it, or use an ordinary element for the step itself.",
+    });
+  }
+
   // Bounding-box overlap: siblings only, since a container is expected to
   // fully enclose its children and comparing across the parent boundary
   // would only produce noise.
-  const nodeBounds = document.nodes.map((node) => {
-    const fallback = getNodeSize(node.data.type);
-    const width = Number(node.style?.width ?? fallback.width) || fallback.width || 1;
-    const height = Number(node.style?.height ?? fallback.height) || fallback.height || 1;
-    return {
-      id: node.id,
-      parentId: node.parentId,
-      x: node.position.x,
-      y: node.position.y,
-      width,
-      height,
-    };
-  });
+  const nodeBounds = document.nodes.map((node) => ({
+    id: node.id,
+    parentId: node.parentId,
+    ...nodeBox(node),
+  }));
   for (let i = 0; i < nodeBounds.length; i++) {
     for (let j = i + 1; j < nodeBounds.length; j++) {
       const a = nodeBounds[i];

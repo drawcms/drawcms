@@ -124,6 +124,9 @@ export interface AppEdge {
     motionLoop?: boolean;
     /** User-selected connector geometry. Existing documents default to curve. */
     routingMode?: EdgeRoutingMode;
+    diagramRoute?: import("./webmcp/routing").DiagramRoute;
+    notation?: "directed" | "association" | "include" | "extend" | "message-flow";
+
     /** Draggable canvas-space bend relative to the endpoint midpoint. */
     bend?: EdgeBend;
     /** Visual offset from the attached source anchor for free message pointing. */

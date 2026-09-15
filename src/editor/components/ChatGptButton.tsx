@@ -42,9 +42,26 @@ export interface ChatGptButtonProps {
 /** sessionStorage key so the auto-opened hint returns next session, not next reload. */
 const PROMPT_HINT_SEEN_KEY = "drawcms.webmcp.prompt-hint-seen";
 
+/** localStorage key that makes "Connected" survive in-app navigation. The
+ * ?webmcpconnected=true flag is only ever present on the exact page the
+ * agent-auth redirect landed on — navigating within the app (e.g. opening a
+ * different diagram, or returning to a plain /editor URL) carries no query
+ * string, so relying on the URL alone flipped the pill back to "Draw with
+ * ChatGPT" on every navigation despite nothing about the connection
+ * changing. Once the flag is observed we persist it here and treat either
+ * signal as connected.
+ *
+ * This only makes the signal durable within the browsing context that
+ * observed it — an agent browser (e.g. ChatGPT desktop's isolated profile)
+ * has its own separate localStorage from the human's regular browser tab,
+ * so this cannot make the human's own tab aware that an agent connected. */
+const CONNECTED_KEY = "drawcms.webmcp.connected";
+
 function buildPageUrl(): { pageUrl: string; connected: boolean } {
   const url = new URL(window.location.href);
-  const connected = url.searchParams.get("webmcpconnected") === "true";
+  const flagInUrl = url.searchParams.get("webmcpconnected") === "true";
+  if (flagInUrl) markStoredConnection();
+  const connected = flagInUrl || hasStoredConnection();
   url.hash = "";
   url.searchParams.set("webmcpconnected", "true");
   return { pageUrl: url.toString(), connected };
@@ -63,6 +80,23 @@ function markPromptHintSeen(): void {
     window.sessionStorage.setItem(PROMPT_HINT_SEEN_KEY, "1");
   } catch {
     // Storage denied (private mode) — the hint simply re-opens per load.
+  }
+}
+
+function hasStoredConnection(): boolean {
+  try {
+    return window.localStorage.getItem(CONNECTED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markStoredConnection(): void {
+  try {
+    window.localStorage.setItem(CONNECTED_KEY, "1");
+  } catch {
+    // Storage denied (private mode) — connected state falls back to the URL
+    // flag alone, same as before this key existed.
   }
 }
 

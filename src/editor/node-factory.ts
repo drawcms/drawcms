@@ -35,6 +35,17 @@ export function nodeRendererType(type: string): string {
 export interface DefaultNodeDataOptions {
   /** One-shot UI hint: focus and open the label editor immediately (palette insert only). */
   editOnMount?: boolean;
+  /**
+   * Whether to seed compartment content (table rows, UML members, ER
+   * attributes, swimlane lanes) with sample values.
+   *
+   * A human dragging a table off the palette wants columns to start editing,
+   * so this defaults to true. An agent describing a diagram does not: it asked
+   * for "Customer", and shipping it `- id: int` / `+ getId(): int` puts fields
+   * on the canvas nobody authored and the viewer will read as real. The WebMCP
+   * paths therefore pass false and supply their own content.
+   */
+  placeholderContent?: boolean;
 }
 
 /** Structured content and style defaults (table rows, UML members, ER attributes, lanes, text). */
@@ -43,6 +54,7 @@ export function defaultNodeData(
   label: string,
   options?: DefaultNodeDataOptions,
 ): AppNodeData {
+  const placeholders = options?.placeholderContent ?? true;
   const data: AppNodeData = {
     label,
     type,
@@ -62,17 +74,21 @@ export function defaultNodeData(
       ...(options?.editOnMount ? { textEditOnMount: true } : {}),
     });
   } else if (type === "table") {
-    data.rows = DEFAULT_TABLE_ROWS.map((row) => ({ ...row }));
+    data.rows = placeholders ? DEFAULT_TABLE_ROWS.map((row) => ({ ...row })) : [];
   } else if (UML_CLASS_TYPES.has(type)) {
-    data.attributes = DEFAULT_UML_ATTRIBUTES.map((attribute) => ({ ...attribute }));
-    data.methods = DEFAULT_UML_METHODS.map((method) => ({ ...method }));
+    data.attributes = placeholders
+      ? DEFAULT_UML_ATTRIBUTES.map((attribute) => ({ ...attribute }))
+      : [];
+    data.methods = placeholders ? DEFAULT_UML_METHODS.map((method) => ({ ...method })) : [];
     data.headerColor = "#dbeafe";
     if (type === "uml-object") data.stereotype = "";
   } else if (ER_ENTITY_TYPES.has(type)) {
-    data.entityAttributes = DEFAULT_ENTITY_ATTRS.map((attribute) => ({ ...attribute }));
+    data.entityAttributes = placeholders
+      ? DEFAULT_ENTITY_ATTRS.map((attribute) => ({ ...attribute }))
+      : [];
     data.headerColor = "#fef3c7";
   } else if (SWIMLANE_TYPES.has(type)) {
-    data.lanes = DEFAULT_LANES.map((lane) => ({ ...lane }));
+    data.lanes = placeholders ? DEFAULT_LANES.map((lane) => ({ ...lane })) : [];
   }
   return data;
 }

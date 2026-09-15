@@ -137,6 +137,54 @@ describe("CustomEdge presentation highlight", () => {
     );
   });
 
+  it("renders planned obstacle routes and labels, then drops stale routes after moving an endpoint", () => {
+    const diagramRoute = {
+      points: [
+        { x: 0, y: 20 },
+        { x: 40, y: 20 },
+        { x: 40, y: 100 },
+        { x: 140, y: 100 },
+        { x: 140, y: 20 },
+        { x: 180, y: 20 },
+      ],
+      source: { x: 0, y: 20 },
+      target: { x: 180, y: 20 },
+      label: { x: 90, y: 130 },
+      labelWidth: 100,
+      labelHeight: 30,
+      issues: [],
+    };
+    const first = renderEdge(baseAnimationState, {
+      ...edgeProps,
+      data: { routingMode: "elbow", label: "Retry", diagramRoute },
+    });
+    expect(first.container.querySelector(".react-flow__edge-path")?.getAttribute("d")).toBe(
+      "M0,20 L40,20 L40,100 L140,100 L140,20 L180,20",
+    );
+    expect(
+      first.container.querySelector<HTMLElement>('[data-edge-label="true"]')?.style.transform,
+    ).toContain("90px,130px");
+    first.unmount();
+    const moved = renderEdge(baseAnimationState, {
+      ...edgeProps,
+      targetX: 300,
+      data: { routingMode: "elbow", diagramRoute },
+    });
+    expect(
+      moved.container.querySelector(".react-flow__edge-path")?.getAttribute("d"),
+    ).not.toContain("L140,100");
+  });
+
+  it("draws include/extend relationships dashed even when static", () => {
+    const { container } = renderEdge(baseAnimationState, {
+      ...edgeProps,
+      data: { notation: "include" },
+    });
+    expect(
+      container.querySelector(".react-flow__edge-path")?.getAttribute("stroke-dasharray"),
+    ).toBe("7 5");
+  });
+
   it("renders a direct line in straight mode", () => {
     const { container } = renderEdge(baseAnimationState, {
       ...edgeProps,

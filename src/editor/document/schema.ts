@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { motionStateSchema } from "../motion/model";
 import { storyStateSchema } from "../story/model";
+import { EDGE_NOTATIONS, ROUTE_ISSUE_CODES, VISUAL_DIAGRAM_TYPES } from "./diagram-types";
 
 /**
  * DrawCMS document format (DM-011, extended for DM-019, reduced for DM-034).
@@ -46,6 +47,7 @@ export const documentNodeSchema = z
         motionSpeed: z.number().positive().max(100).optional(),
         motionLoop: z.boolean().optional(),
         locked: z.boolean().optional(),
+        layoutHeight: finiteNumber.positive().max(2000).optional(),
         iconName: z.string().max(120).optional(),
         iconBody: z.string().max(65536).optional(),
         iconViewBox: z.string().max(40).optional(),
@@ -71,6 +73,38 @@ export const documentEdgeSchema = z
       .extend({
         label: z.string().optional(),
         routingMode: z.enum(["straight", "elbow", "curve"]).optional(),
+        notation: z.enum(EDGE_NOTATIONS).optional(),
+        diagramRoute: z
+          .object({
+            points: z
+              .array(z.object({ x: finiteNumber, y: finiteNumber }))
+              .min(2)
+              .max(20),
+            source: z.object({ x: finiteNumber, y: finiteNumber }),
+            target: z.object({ x: finiteNumber, y: finiteNumber }),
+            label: z.object({ x: finiteNumber, y: finiteNumber }),
+            sourceBounds: z
+              .object({
+                x: finiteNumber,
+                y: finiteNumber,
+                width: finiteNumber.positive(),
+                height: finiteNumber.positive(),
+              })
+              .optional(),
+            targetBounds: z
+              .object({
+                x: finiteNumber,
+                y: finiteNumber,
+                width: finiteNumber.positive(),
+                height: finiteNumber.positive(),
+              })
+              .optional(),
+            labelWidth: finiteNumber.nonnegative(),
+            labelHeight: finiteNumber.nonnegative(),
+            labelText: z.string().max(1000).optional(),
+            issues: z.array(z.enum(ROUTE_ISSUE_CODES)).max(20),
+          })
+          .optional(),
         bend: z.object({ x: finiteNumber, y: finiteNumber }).passthrough().optional(),
         sourceOffset: z.object({ x: finiteNumber, y: finiteNumber }).passthrough().optional(),
         targetOffset: z.object({ x: finiteNumber, y: finiteNumber }).passthrough().optional(),
@@ -96,6 +130,14 @@ export const documentMetaSchema = z
     description: z.string().max(2000).optional(),
     createdAt: z.string().datetime({ offset: true }).optional(),
     updatedAt: z.string().datetime({ offset: true }).optional(),
+    /**
+     * The notation this diagram was authored in, recorded by the WebMCP build
+     * tools. It is persisted rather than always re-inferred so that a diagram
+     * whose shapes are ambiguous (an ER model drawn with plain rectangles, say)
+     * still validates and re-lays-out against the notation the author intended.
+     * `inferVisualDiagramType` falls back to shape-based inference when absent.
+     */
+    diagramType: z.enum(VISUAL_DIAGRAM_TYPES).optional(),
   })
   .passthrough();
 

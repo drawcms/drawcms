@@ -91,7 +91,17 @@ export function UmlClassNode({ id, data, selected }: { id: string; data: any; se
   return (
     <>
       <NodeResizer isVisible={selected && !data?.locked} minWidth={100} minHeight={40} />
-      <div ref={nodeRef} className="relative w-full" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div
+        ref={nodeRef}
+        className="relative w-full"
+        style={{
+          fontFamily: "Inter, sans-serif",
+          // Match the height automatic layout reserved for this class (see
+          // webmcp/tools.ts `structuredNodeData`), so connector routing planned
+          // around the reserved box matches the box the DOM actually paints.
+          minHeight: Number(data?.layoutHeight) || undefined,
+        }}
+      >
         <Handle
           type="source"
           position={Position.Top}
@@ -108,7 +118,11 @@ export function UmlClassNode({ id, data, selected }: { id: string; data: any; se
         <div
           className="w-full rounded border shadow-md"
           data-story-active={isStoryTarget ? "true" : undefined}
-          style={{ borderColor: storyStrokeColor, backgroundColor: storyFillColor }}
+          style={{
+            borderColor: storyStrokeColor,
+            backgroundColor: storyFillColor,
+            minHeight: Number(data?.layoutHeight) || undefined,
+          }}
         >
           {/* Header - class name */}
           <div

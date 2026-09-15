@@ -9,6 +9,7 @@ import {
 } from "./tools";
 import { applyGraphEditOperations } from "../commands/commands";
 import type { DrawCMSDocument } from "../document/schema";
+import { boxesOverlap, nodeBox } from "./routing";
 import { VISUAL_ELEMENT_REGISTRY, VISUAL_MOTION_REGISTRY } from "./visual-grammar";
 
 function adapter() {
@@ -140,7 +141,7 @@ describe("DrawCMS WebMCP tools", () => {
       target: "api",
       sourceHandle: "right",
       targetHandle: "left",
-      data: { preset: "Data Flow", routingMode: "curve" },
+      data: { preset: "Data Flow", routingMode: "elbow" },
     });
     expect(target.current?.motion).not.toHaveProperty("scenes");
   });
@@ -610,6 +611,113 @@ describe("DrawCMS WebMCP tools", () => {
     expect(JSON.stringify(result)).toContain("DATASTORE_SEMANTIC_MISMATCH");
   });
 
+  it("tidies an overlapping diagram back to a readable layout in one undoable batch", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const tidy = tools.find((tool) => tool.name === "drawcms_tidy_diagram");
+
+    // Explicit positions are anchors the build path must respect, so this is a
+    // diagram that is legitimately unreadable until something re-derives it.
+    await replace?.execute({
+      diagramType: "flowchart",
+      nodes: [
+        { id: "a", label: "Start", type: "terminator", position: { x: 0, y: 0 } },
+        { id: "b", label: "Work", type: "process", position: { x: 10, y: 10 } },
+        { id: "c", label: "Done", type: "terminator", position: { x: 20, y: 20 } },
+      ],
+      edges: [
+        { source: "a", target: "b", label: "then" },
+        { source: "b", target: "c", label: "finally" },
+      ],
+    });
+
+    const before = target.current!.nodes.map((node) => nodeBox(node as never));
+    expect(boxesOverlap(before[0], before[1])).toBe(true);
+
+    const result = await tidy?.execute({});
+    expect(result).toMatchObject({ ok: true, diagramType: "flowchart" });
+    expect(target.applyGraphEdit).toHaveBeenCalledOnce();
+
+    const after = target.current!.nodes.map((node) => nodeBox(node as never));
+    for (let i = 0; i < after.length; i++)
+      for (let j = i + 1; j < after.length; j++)
+        expect(boxesOverlap(after[i], after[j])).toBe(false);
+  });
+
+  it("re-routes without moving anything when scope is connectors", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const tidy = tools.find((tool) => tool.name === "drawcms_tidy_diagram");
+
+    await replace?.execute({
+      diagramType: "flowchart",
+      nodes: [
+        { id: "a", label: "A", type: "process" },
+        { id: "b", label: "B", type: "process" },
+      ],
+      edges: [{ source: "a", target: "b", label: "next" }],
+    });
+    const positions = target.current!.nodes.map((node) => ({ ...node.position }));
+
+    const result = await tidy?.execute({ scope: "connectors" });
+
+    expect(result).toMatchObject({ ok: true, movedCount: 0 });
+    expect(target.current!.nodes.map((node) => node.position)).toEqual(positions);
+    expect(target.current!.edges[0].data?.diagramRoute).toBeDefined();
+  });
+
+  it("leaves sequence lifelines alone and says why", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const tidy = tools.find((tool) => tool.name === "drawcms_tidy_diagram");
+
+    await replace?.execute({
+      diagramType: "sequence",
+      nodes: [
+        { id: "user", label: "User", type: "sequence-actor" },
+        { id: "api", label: "API", type: "sequence-participant" },
+      ],
+      edges: [{ source: "user", target: "api", label: "GET /x", type: "sequence-message" }],
+    });
+    const positions = target.current!.nodes.map((node) => ({ ...node.position }));
+
+    const result = await tidy?.execute({});
+
+    expect(result).toMatchObject({ ok: true, diagramType: "sequence", movedCount: 0 });
+    expect(result).toHaveProperty("note", expect.stringContaining("message rows"));
+    expect(target.current!.nodes.map((node) => node.position)).toEqual(positions);
+  });
+
+  it("is idempotent — tidying an already tidy diagram moves nothing", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const tidy = tools.find((tool) => tool.name === "drawcms_tidy_diagram");
+
+    await replace?.execute({
+      diagramType: "bpmn",
+      nodes: [
+        { id: "start", label: "Received", type: "bpmn-start" },
+        { id: "task", label: "Review", type: "bpmn-task" },
+        { id: "end", label: "Closed", type: "bpmn-end" },
+      ],
+      edges: [
+        { source: "start", target: "task" },
+        { source: "task", target: "end" },
+      ],
+    });
+
+    await tidy?.execute({});
+    const settled = target.current!.nodes.map((node) => ({ ...node.position }));
+    const second = await tidy?.execute({});
+
+    expect(second).toMatchObject({ movedCount: 0 });
+    expect(target.current!.nodes.map((node) => node.position)).toEqual(settled);
+  });
+
   it("registers every tool with one AbortSignal and aborts on cleanup", () => {
     const target = adapter();
     const signals: AbortSignal[] = [];
@@ -621,7 +729,7 @@ describe("DrawCMS WebMCP tools", () => {
 
     const dispose = registerDrawCMSWebMCPTools(modelContext, target.value);
 
-    expect(modelContext.registerTool).toHaveBeenCalledTimes(8);
+    expect(modelContext.registerTool).toHaveBeenCalledTimes(9);
     expect(new Set(signals)).toHaveLength(1);
     expect(signals[0].aborted).toBe(false);
     dispose();
@@ -858,6 +966,211 @@ describe("DrawCMS WebMCP tools", () => {
       target: "db",
       data: { label: "query", preset: "Data Flow", motionSpeed: 0.5 },
     });
+  });
+
+  it("places an added node clear of the diagram instead of on a fixed coordinate", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const edit = tools.find((tool) => tool.name === "drawcms_edit_diagram");
+
+    // A node spanning the old hardcoded {x:300,y:200} fallback.
+    await replace?.execute({
+      diagramType: "flowchart",
+      nodes: [
+        {
+          id: "wide",
+          label: "Existing",
+          type: "process",
+          position: { x: 100, y: 100 },
+          width: 600,
+          height: 400,
+        },
+      ],
+    });
+
+    await edit?.execute({
+      operations: [{ op: "addNode", id: "added", label: "Added", type: "process" }],
+    });
+
+    const boxes = target.current!.nodes.map((node) => nodeBox(node as never));
+    expect(boxes).toHaveLength(2);
+    expect(boxesOverlap(boxes[0], boxes[1])).toBe(false);
+  });
+
+  it("keeps two positionless additions in the same batch off each other", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const edit = tools.find((tool) => tool.name === "drawcms_edit_diagram");
+
+    await replace?.execute({
+      diagramType: "flowchart",
+      nodes: [{ id: "root", label: "Root", type: "process" }],
+    });
+    await edit?.execute({
+      operations: [
+        { op: "addNode", id: "a", label: "First addition", type: "process" },
+        { op: "addNode", id: "b", label: "Second addition", type: "process" },
+      ],
+    });
+
+    const boxes = target.current!.nodes.map((node) => nodeBox(node as never));
+    expect(boxes).toHaveLength(3);
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++)
+        expect(boxesOverlap(boxes[i], boxes[j])).toBe(false);
+  });
+
+  it("adds connectors in the notation the diagram was authored in", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const edit = tools.find((tool) => tool.name === "drawcms_edit_diagram");
+
+    await replace?.execute({
+      diagramType: "database-model",
+      nodes: [
+        { id: "users", label: "users", type: "table" },
+        { id: "orders", label: "orders", type: "table" },
+      ],
+    });
+    await edit?.execute({
+      operations: [
+        {
+          op: "addEdge",
+          id: "fk",
+          source: "users",
+          target: "orders",
+          label: "orders.user_id → users.id",
+          sourceCardinality: "1",
+          targetCardinality: "0..*",
+        },
+      ],
+    });
+
+    const edge = target.current!.edges.find((candidate) => candidate.id === "fk");
+    // A structural notation, not the "curve" + directed arrow default that
+    // every other diagram type gets.
+    expect(edge?.data?.notation).toBe("association");
+    expect(edge?.data?.routingMode).toBe("elbow");
+    expect(edge?.label).toContain("users [1] — orders [0..*]");
+    // Routed around the tables rather than left without geometry.
+    expect(edge?.data?.diagramRoute?.points.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("keeps multiplicity when updateEdge relabels a relationship", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const edit = tools.find((tool) => tool.name === "drawcms_edit_diagram");
+
+    await replace?.execute({
+      diagramType: "database-model",
+      nodes: [
+        { id: "orders", label: "orders", type: "table" },
+        { id: "items", label: "order_items", type: "table" },
+      ],
+      edges: [
+        {
+          id: "rel",
+          source: "orders",
+          target: "items",
+          label: "contains",
+          sourceCardinality: "1",
+          targetCardinality: "1..*",
+        },
+      ],
+    });
+    expect(target.current!.edges[0].label).toContain("orders [1] — items [1..*]");
+
+    await edit?.execute({
+      operations: [
+        {
+          op: "updateEdge",
+          edgeId: "rel",
+          label: "has",
+          sourceCardinality: "1",
+          targetCardinality: "1..*",
+        },
+      ],
+    });
+
+    const edge = target.current!.edges.find((candidate) => candidate.id === "rel");
+    // Multiplicity is rendered into the label text, so a relabel that could not
+    // restate it silently downgraded the model to an unlabelled association.
+    expect(edge?.label).toBe("has\norders [1] — items [1..*]");
+    expect(edge?.data?.notation).toBe("association");
+  });
+
+  it("accepts structured fields on an added node and rejects mismatched shapes", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const edit = tools.find((tool) => tool.name === "drawcms_edit_diagram");
+
+    await replace?.execute({
+      diagramType: "database-model",
+      nodes: [{ id: "users", label: "users", type: "table" }],
+    });
+    await edit?.execute({
+      operations: [
+        {
+          op: "addNode",
+          id: "orders",
+          label: "orders",
+          type: "table",
+          rows: [
+            { id: "id", name: "id", type: "uuid" },
+            { id: "user", name: "user_id", type: "uuid" },
+          ],
+        },
+      ],
+    });
+
+    const added = target.current!.nodes.find((node) => node.id === "orders");
+    expect(added?.data.rows).toHaveLength(2);
+    // Content-driven height so routes are planned around the box that paints.
+    expect(added?.data.layoutHeight).toBeGreaterThan(40);
+
+    expect(
+      await edit?.execute({
+        operations: [
+          {
+            op: "addNode",
+            id: "wrong",
+            label: "Not a table",
+            type: "process",
+            rows: [{ id: "c", name: "c", type: "text" }],
+          },
+        ],
+      }),
+    ).toMatchObject({ ok: false, error: { code: "INVALID_DIAGRAM" } });
+  });
+
+  it("drops planned routes for connectors whose endpoint the batch moves", async () => {
+    const target = adapter();
+    const tools = createDrawCMSWebMCPTools(target.value);
+    const replace = tools.find((tool) => tool.name === "drawcms_replace_diagram");
+    const edit = tools.find((tool) => tool.name === "drawcms_edit_diagram");
+
+    await replace?.execute({
+      diagramType: "flowchart",
+      nodes: [
+        { id: "a", label: "A", type: "process" },
+        { id: "b", label: "B", type: "process" },
+      ],
+      edges: [{ source: "a", target: "b", label: "next" }],
+    });
+    expect(target.current!.edges[0].data?.diagramRoute).toBeDefined();
+
+    await edit?.execute({
+      operations: [{ op: "updateNode", nodeId: "b", position: { x: 1200, y: 900 } }],
+    });
+
+    // The stored polyline described the old position, so it is given up rather
+    // than drawn against coordinates the node no longer occupies.
+    expect(target.current!.edges[0].data?.diagramRoute).toBeUndefined();
   });
 
   it("updates and deletes existing elements without touching the rest of the diagram", async () => {

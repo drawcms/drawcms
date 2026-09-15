@@ -1,5 +1,7 @@
 "use client";
 
+import { isDiagramRoute, nodeBox, type Box } from "../webmcp/routing";
+
 import {
   useCallback,
   useEffect,
@@ -581,6 +583,59 @@ export function CustomEdge({
     labelY -= 14;
   }
 
+  const { getNode } = useReactFlow();
+  const storedRoute = isDiagramRoute(data?.diagramRoute) ? data.diagramRoute : null;
+  const matchesNode = (id: string, bounds: Box | undefined) => {
+    const node = getNode(id);
+    if (!node || !bounds) return false;
+    const current = nodeBox(node as unknown as import("../types").AppNode);
+    return (
+      current.x === bounds.x &&
+      current.y === bounds.y &&
+      current.width === bounds.width &&
+      current.height === bounds.height
+    );
+  };
+  const endpointsMatch =
+    storedRoute &&
+    (storedRoute.sourceBounds && storedRoute.targetBounds
+      ? matchesNode(source, storedRoute.sourceBounds) &&
+        matchesNode(target, storedRoute.targetBounds)
+      : Math.abs(storedRoute.source.x - effectiveSourceX) < 2 &&
+        Math.abs(storedRoute.source.y - effectiveSourceY) < 2 &&
+        Math.abs(storedRoute.target.x - effectiveTargetX) < 2 &&
+        Math.abs(storedRoute.target.y - effectiveTargetY) < 2);
+  const activeRoute =
+    storedRoute &&
+    endpointsMatch &&
+    (storedRoute.labelText === undefined || storedRoute.labelText === String(data?.label ?? "")) &&
+    !editableBend &&
+    !sequenceType &&
+    routingMode === "elbow"
+      ? storedRoute
+      : null;
+  if (activeRoute) {
+    // Text-below shapes attach at painted artwork, inside the reserved frame.
+    // Join those measured anchors to the planned frame without losing the
+    // obstacle-free middle of the route or its label placement.
+    const horizontalSource = sourcePosition === "left" || sourcePosition === "right";
+    const horizontalTarget = targetPosition === "left" || targetPosition === "right";
+    const points = [
+      { x: effectiveSourceX, y: effectiveSourceY },
+      horizontalSource
+        ? { x: activeRoute.source.x, y: effectiveSourceY }
+        : { x: effectiveSourceX, y: activeRoute.source.y },
+      ...activeRoute.points,
+      horizontalTarget
+        ? { x: activeRoute.target.x, y: effectiveTargetY }
+        : { x: effectiveTargetX, y: activeRoute.target.y },
+      { x: effectiveTargetX, y: effectiveTargetY },
+    ].filter((point, i, all) => !i || point.x !== all[i - 1].x || point.y !== all[i - 1].y);
+    edgePath = points.map((point, i) => `${i ? "L" : "M"}${point.x},${point.y}`).join(" ");
+    labelX = activeRoute.label.x;
+    labelY = activeRoute.label.y;
+  }
+
   const selectedLabelOffset = selected && data?.label ? 36 * edgeScale : 0;
   const displayLabelX =
     selectedLabelOffset &&
@@ -608,7 +663,8 @@ export function CustomEdge({
     (data?.isAnimating as boolean | undefined) || (isStoryStepPlaying && isStoryTarget);
   const isSelected = selected;
   const baseStrokeWidth =
-    (isStoryTarget ? 3 : isSelected ? 2 : sequenceType ? 1.5 : 1) * (sequenceType ? edgeScale : 1);
+    (isStoryTarget ? 3 : isSelected ? 2 : sequenceType || data?.notation ? 1.5 : 1) *
+    (sequenceType ? edgeScale : 1);
   const motionSpeed = (data?.motionSpeed as number) || 0.25;
   const motionLoop = (data?.motionLoop as boolean) ?? true;
 
@@ -623,7 +679,14 @@ export function CustomEdge({
     gsap.killTweensOf([path, orbit, glow]);
 
     // Reset styles
-    setExportStableDash(path, sequenceType === "sequence-message-return" ? "7 5" : "none", 0);
+    setExportStableDash(
+      path,
+      sequenceType === "sequence-message-return" ||
+        ["include", "extend", "message-flow"].includes(String(data?.notation ?? ""))
+        ? "7 5"
+        : "none",
+      0,
+    );
     gsap.set(path, { opacity: 1, strokeWidth: baseStrokeWidth });
     if (orbit) gsap.set(orbit, { opacity: 0 });
     if (glow) {
@@ -738,6 +801,7 @@ export function CustomEdge({
     motionSpeed,
     motionLoop,
     sequenceType,
+    data?.notation,
     isStoryTarget,
   ]);
 
@@ -784,7 +848,11 @@ export function CustomEdge({
   }, [edgePath, isStoryStepPlaying, isStoryTarget, prefersReducedMotion]);
 
   let strokeColor =
-    isSelected || isStoryTarget ? EDGE_ACCENT : sequenceType ? "#475569" : "#94a3b8";
+    isSelected || isStoryTarget
+      ? EDGE_ACCENT
+      : sequenceType || data?.notation
+        ? "#475569"
+        : "#94a3b8";
 
   if (isStoryTarget) {
     strokeColor = EDGE_ACCENT;
@@ -969,6 +1037,8 @@ export function CustomEdge({
                   ? `1px solid ${EDGE_ACCENT}`
                   : "1px solid transparent"
                 : `1px solid ${isStoryTarget || isSelected ? EDGE_ACCENT : "#cbd5e1"}`,
+              width: activeRoute?.labelWidth || undefined,
+              boxSizing: "border-box",
               maxWidth: Math.max(96, 220 * edgeScale),
               lineHeight: 1.25,
               overflowWrap: "anywhere",

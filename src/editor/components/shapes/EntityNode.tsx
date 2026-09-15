@@ -87,7 +87,14 @@ export function EntityNode({ id, data, selected }: { id: string; data: any; sele
   return (
     <>
       <NodeResizer isVisible={selected && !data?.locked} minWidth={100} minHeight={40} />
-      <div ref={nodeRef} className="relative w-full" style={{ fontFamily: "Inter, sans-serif" }}>
+      <div
+        ref={nodeRef}
+        className="relative w-full"
+        style={{
+          fontFamily: "Inter, sans-serif",
+          minHeight: Number(data?.layoutHeight) || undefined,
+        }}
+      >
         <Handle
           type="source"
           position={Position.Top}
@@ -104,7 +111,11 @@ export function EntityNode({ id, data, selected }: { id: string; data: any; sele
         <div
           className={`w-full rounded shadow-md ${isWeak ? "border-4 border-double" : "border"}`}
           data-story-active={isStoryTarget ? "true" : undefined}
-          style={{ borderColor: storyStrokeColor, backgroundColor: storyFillColor }}
+          style={{
+            borderColor: storyStrokeColor,
+            backgroundColor: storyFillColor,
+            minHeight: Number(data?.layoutHeight) || undefined,
+          }}
         >
           {/* Header - entity name */}
           <div

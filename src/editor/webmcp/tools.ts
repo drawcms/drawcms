@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { getNodeSize } from "../constants";
+import { MarkerType } from "@xyflow/react";
+import { boxesOverlap, nodeBox, routeDiagramEdges, type Box } from "./routing";
+import { DEFAULT_USABLE_AREA, getNodeSize, SHAPE_USABLE_AREA } from "../constants";
 import { SHAPE_CATEGORIES } from "../components/shapes/catalog";
 import { createDocument } from "../document/serialize";
 import {
@@ -18,7 +20,7 @@ import {
   sequenceActivationBounds,
 } from "../sequence-edges";
 import type { GraphEditOperation } from "../commands/commands";
-import { SEQUENCE_EDGE_TYPES, type AppEdge, type AppNode } from "../types";
+import { SEQUENCE_EDGE_TYPES, isSequenceEdgeType, type AppEdge, type AppNode } from "../types";
 import {
   createEmptyStory,
   STORY_STEP_MAX_DURATION_MS,
@@ -26,7 +28,14 @@ import {
   storyStateSchema,
   type StoryState,
 } from "../story/model";
-import { layoutNodes, SEQUENCE_LIFELINE_HEIGHT, type LayoutEdge, type LayoutNode } from "./layout";
+import {
+  layoutNodes,
+  SEQUENCE_LIFELINE_HEIGHT,
+  VERTICAL_RANK_GAP,
+  type LayoutEdge,
+  type LayoutNode,
+  type LayoutPosition,
+} from "./layout";
 import {
   beatInputSchema,
   beatsJsonSchema,
@@ -41,9 +50,16 @@ import {
   VISUAL_MOTION_REGISTRY,
   VISUAL_RELATIONSHIP_REGISTRY,
   inferDiagramTypeFromNodeTypes,
+  inferVisualDiagramType,
   recommendVisualGrammar,
   validateDiagramVisualGrammar,
 } from "./visual-grammar";
+import {
+  EDGE_NOTATIONS,
+  STRUCTURAL_NOTATION_DIAGRAM_TYPES,
+  type EdgeNotation,
+  type VisualDiagramType,
+} from "../document/diagram-types";
 
 /** Default animation speed for agent-built motion, matching the built-in
  * templates (document/templates.ts) so a single WebMCP call produces the
@@ -126,6 +142,35 @@ const motionSettingsSchema = z
   })
   .strict();
 
+const tableRowsSchema = z
+  .array(
+    z
+      .object({ id: idSchema, name: z.string().min(1).max(120), type: z.string().max(120) })
+      .strict(),
+  )
+  .max(60);
+
+const entityAttributesSchema = z
+  .array(
+    z
+      .object({
+        id: idSchema,
+        name: z.string().min(1).max(120),
+        isKey: z.boolean().default(false),
+      })
+      .strict(),
+  )
+  .max(60);
+
+/** UML class compartment lines, written the way UML writes them (`- id: int`). */
+const umlMembersSchema = z
+  .array(z.object({ id: idSchema, text: z.string().min(1).max(160) }).strict())
+  .max(60);
+
+const CARDINALITIES = ["0..1", "1", "0..*", "1..*"] as const;
+
+const cardinalitySchema = z.enum(CARDINALITIES);
+
 const nodeInputSchema = z
   .object({
     id: idSchema,
@@ -139,6 +184,10 @@ const nodeInputSchema = z
     textColor: z.string().max(100).optional(),
     /** sequence-activation only: the lifeline node id this activation belongs to. */
     participantId: idSchema.optional(),
+    rows: tableRowsSchema.optional(),
+    entityAttributes: entityAttributesSchema.optional(),
+    attributes: umlMembersSchema.optional(),
+    methods: umlMembersSchema.optional(),
     motion: motionSettingsSchema
       .extend({ preset: z.enum(WEBMCP_NODE_MOTION_PRESETS) })
       .strict()
@@ -154,6 +203,9 @@ const edgeInputSchema = z
     label: z.string().max(240).optional(),
     type: z.enum(WEBMCP_EDGE_TYPES).optional(),
     routing: z.enum(["straight", "elbow", "curve"]).optional(),
+    notation: z.enum(EDGE_NOTATIONS).optional(),
+    sourceCardinality: cardinalitySchema.optional(),
+    targetCardinality: cardinalitySchema.optional(),
     motion: motionSettingsSchema
       .extend({ preset: z.enum(WEBMCP_EDGE_MOTION_PRESETS) })
       .strict()
@@ -164,6 +216,8 @@ const edgeInputSchema = z
 const replaceDiagramInputSchema = z
   .object({
     name: z.string().min(1).max(120).default("AI-generated diagram"),
+    diagramType: z.enum(VISUAL_DIAGRAM_TYPES).optional(),
+    direction: z.enum(["LR", "TB"]).default("LR"),
     nodes: z.array(nodeInputSchema).min(1).max(250),
     edges: z.array(edgeInputSchema).max(500).default([]),
     /** Intent-driven narration and motion; ignored fields when `story` is also given. */
@@ -176,6 +230,18 @@ const replaceDiagramInputSchema = z
 const replaceDiagramJsonSchema: JsonSchema = {
   type: "object",
   properties: {
+    diagramType: {
+      type: "string",
+      enum: VISUAL_DIAGRAM_TYPES,
+      description:
+        "Intended notation; omit to infer from shapes. Use flowchart for flow diagrams, use-case for actors and goals, database-model for physical schemas.",
+    },
+    direction: {
+      type: "string",
+      enum: ["LR", "TB"],
+      description:
+        "Automatic flow direction, left-to-right (default) or top-to-bottom. Sequence diagrams always flow downward in time.",
+    },
     name: {
       type: "string",
       description: "Human-readable diagram name.",
@@ -183,7 +249,7 @@ const replaceDiagramJsonSchema: JsonSchema = {
     nodes: {
       type: "array",
       description:
-        "Diagram elements. Positions are optional; DrawCMS lays out omitted positions automatically (lifeline columns for sequence diagrams, ranked left-to-right layers for flowcharts and architecture, a grid otherwise).",
+        "Diagram elements. Positions are optional; DrawCMS lays out omitted positions automatically (lifeline columns for sequence diagrams, ranked left-to-right layers for flowcharts and architecture, BPMN and data models, separate actor/use-case columns, a size-aware grid otherwise).",
       items: {
         type: "object",
         properties: {
@@ -199,12 +265,64 @@ const replaceDiagramJsonSchema: JsonSchema = {
           },
           position: {
             type: "object",
-            description: "Optional canvas position. Omit it to use automatic grid layout.",
+            description:
+              "Optional fixed canvas position. Omit for size-aware automatic layout and collision avoidance.",
             properties: {
               x: { type: "number", description: "Horizontal canvas coordinate." },
               y: { type: "number", description: "Vertical canvas coordinate." },
             },
             required: ["x", "y"],
+          },
+          rows: {
+            type: "array",
+            description:
+              "table only: real schema fields; include PK/FK in field names when relevant.",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                type: { type: "string" },
+              },
+              required: ["id", "name", "type"],
+              additionalProperties: false,
+            },
+          },
+          entityAttributes: {
+            type: "array",
+            description: "ER entity attributes; isKey marks a primary key.",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                isKey: { type: "boolean" },
+              },
+              required: ["id", "name"],
+              additionalProperties: false,
+            },
+          },
+          attributes: {
+            type: "array",
+            description:
+              "uml-class / uml-object only: attribute compartment lines, written as UML writes them (\u201c- total: Money\u201d). Compartments are empty unless you supply them.",
+            items: {
+              type: "object",
+              properties: { id: { type: "string" }, text: { type: "string" } },
+              required: ["id", "text"],
+              additionalProperties: false,
+            },
+          },
+          methods: {
+            type: "array",
+            description:
+              "uml-class / uml-object only: operation compartment lines (\u201c+ addLine(item): void\u201d).",
+            items: {
+              type: "object",
+              properties: { id: { type: "string" }, text: { type: "string" } },
+              required: ["id", "text"],
+              additionalProperties: false,
+            },
           },
           width: { type: "number", description: "Optional width in canvas pixels." },
           height: { type: "number", description: "Optional height in canvas pixels." },
@@ -246,7 +364,28 @@ const replaceDiagramJsonSchema: JsonSchema = {
           id: { type: "string", description: "Optional stable connector identifier." },
           source: { type: "string", description: "Source node id." },
           target: { type: "string", description: "Target node id." },
-          label: { type: "string", description: "Optional visible connector label." },
+          label: {
+            type: "string",
+            description:
+              "Concise visible connector label. Name decision branches with conditions; data flows with data names.",
+          },
+          notation: {
+            type: "string",
+            enum: ["directed", "association", "include", "extend", "message-flow"],
+            description:
+              "Directed control flow, undirected structural association, dashed UML include/extend (source includes target; extension points to base), or dashed BPMN message flow between participants.",
+          },
+          sourceCardinality: {
+            type: "string",
+            enum: ["0..1", "1", "0..*", "1..*"],
+            description:
+              "ER/database multiplicity at source, rendered with its endpoint id in the relationship label.",
+          },
+          targetCardinality: {
+            type: "string",
+            enum: ["0..1", "1", "0..*", "1..*"],
+            description: "ER/database multiplicity at target.",
+          },
           type: {
             type: "string",
             enum: WEBMCP_EDGE_TYPES,
@@ -257,7 +396,7 @@ const replaceDiagramJsonSchema: JsonSchema = {
             type: "string",
             enum: ["straight", "elbow", "curve"],
             description:
-              "Connector geometry; native sequence messages default to straight (self-messages to elbow) and other connectors to curve.",
+              "Connector geometry. Semantic diagrams default to obstacle-aware elbow routes; sequence messages stay straight, and general diagrams retain curves. Explicit curve/straight skips obstacle routing.",
           },
           motion: {
             type: "object",
@@ -538,6 +677,10 @@ const editNodeSchema = z
     fillColor: z.string().max(100).optional(),
     strokeColor: z.string().max(100).optional(),
     textColor: z.string().max(100).optional(),
+    rows: tableRowsSchema.optional(),
+    entityAttributes: entityAttributesSchema.optional(),
+    attributes: umlMembersSchema.optional(),
+    methods: umlMembersSchema.optional(),
     motion: motionSettingsSchema
       .extend({ preset: z.enum(WEBMCP_NODE_MOTION_PRESETS) })
       .strict()
@@ -569,6 +712,9 @@ const editEdgeSchema = z
     label: z.string().max(240).optional(),
     type: z.enum(WEBMCP_EDGE_TYPES).optional(),
     routing: z.enum(["straight", "elbow", "curve"]).optional(),
+    notation: z.enum(EDGE_NOTATIONS).optional(),
+    sourceCardinality: cardinalitySchema.optional(),
+    targetCardinality: cardinalitySchema.optional(),
     motion: motionSettingsSchema
       .extend({ preset: z.enum(WEBMCP_EDGE_MOTION_PRESETS) })
       .strict()
@@ -581,6 +727,9 @@ const updateEdgeSchema = z
     op: z.literal("updateEdge"),
     edgeId: idSchema,
     label: z.string().max(240).optional(),
+    notation: z.enum(EDGE_NOTATIONS).optional(),
+    sourceCardinality: cardinalitySchema.optional(),
+    targetCardinality: cardinalitySchema.optional(),
     motion: motionPatchSchema.optional(),
   })
   .strict();
@@ -596,6 +745,41 @@ const editOperationSchema = z.discriminatedUnion("op", [
   deleteEdgeSchema,
 ]);
 
+const TIDY_SCOPES = ["all", "positions", "connectors"] as const;
+
+type TidyScope = (typeof TIDY_SCOPES)[number];
+
+const tidyDiagramInputSchema = z
+  .object({
+    diagramType: z.enum(VISUAL_DIAGRAM_TYPES).optional(),
+    direction: z.enum(["LR", "TB"]).optional(),
+    scope: z.enum(TIDY_SCOPES).default("all"),
+  })
+  .strict();
+
+const tidyDiagramJsonSchema: JsonSchema = {
+  type: "object",
+  properties: {
+    diagramType: {
+      type: "string",
+      enum: VISUAL_DIAGRAM_TYPES,
+      description:
+        "Notation to lay the diagram out as. Omit it to use the notation the diagram was built with.",
+    },
+    direction: {
+      type: "string",
+      enum: ["LR", "TB"],
+      description: "Reading direction for the re-layout; defaults to left-to-right.",
+    },
+    scope: {
+      type: "string",
+      enum: [...TIDY_SCOPES],
+      description:
+        "What to re-derive: positions only, connectors only, or all (the default). Use connectors after a human has dragged elements into a deliberate arrangement you want to keep.",
+    },
+  },
+};
+
 const editDiagramInputSchema = z
   .object({ operations: z.array(editOperationSchema).min(1).max(100) })
   .strict();
@@ -608,7 +792,7 @@ const editDiagramJsonSchema: JsonSchema = {
     operations: {
       type: "array",
       description:
-        "Ordered incremental edits applied to the current diagram as one undoable action. Unlike drawcms_replace_diagram, this does not rebuild the whole canvas or clear undo history — an agent edit here can be reversed with a single Cmd+Z. Operations execute in array order, so an edge can reference a node added earlier in the same batch.",
+        "Ordered incremental edits applied to the current diagram as one undoable action. Unlike drawcms_replace_diagram, this does not rebuild the whole canvas or clear undo history — an agent edit here can be reversed with a single Cmd+Z. Operations execute in array order, so an edge can reference a node added earlier in the same batch. A node added without a position is placed in free space rather than on top of existing elements, new connectors are routed around the shapes already on the canvas, and connectors whose endpoint this batch moves give up their planned route so they redraw cleanly.",
       items: {
         type: "object",
         properties: {
@@ -630,6 +814,54 @@ const editDiagramJsonSchema: JsonSchema = {
           },
           width: { type: "number", description: "addNode: optional width in canvas pixels." },
           height: { type: "number", description: "addNode: optional height in canvas pixels." },
+          rows: {
+            type: "array",
+            description:
+              "addNode, type table only: physical columns rendered inside the shape. The node is sized from them.",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                type: { type: "string" },
+              },
+              required: ["id", "name", "type"],
+            },
+          },
+          entityAttributes: {
+            type: "array",
+            description:
+              "addNode, ER entities only: attributes rendered inside the shape; isKey marks a primary key.",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                isKey: { type: "boolean" },
+              },
+              required: ["id", "name"],
+            },
+          },
+          attributes: {
+            type: "array",
+            description:
+              "addNode, uml-class / uml-object only: attribute compartment lines (\u201c- total: Money\u201d).",
+            items: {
+              type: "object",
+              properties: { id: { type: "string" }, text: { type: "string" } },
+              required: ["id", "text"],
+            },
+          },
+          methods: {
+            type: "array",
+            description:
+              "addNode, uml-class / uml-object only: operation compartment lines (\u201c+ addLine(item): void\u201d).",
+            items: {
+              type: "object",
+              properties: { id: { type: "string" }, text: { type: "string" } },
+              required: ["id", "text"],
+            },
+          },
           fillColor: { type: "string" },
           strokeColor: { type: "string" },
           textColor: { type: "string" },
@@ -649,7 +881,30 @@ const editDiagramJsonSchema: JsonSchema = {
           },
           source: { type: "string", description: "addEdge: source node id." },
           target: { type: "string", description: "addEdge: target node id." },
-          routing: { type: "string", enum: ["straight", "elbow", "curve"] },
+          routing: {
+            type: "string",
+            enum: ["straight", "elbow", "curve"],
+            description:
+              "Connector geometry. Defaults to elbow with automatic obstacle avoidance for every notation except general, matching how drawcms_replace_diagram routes.",
+          },
+          notation: {
+            type: "string",
+            enum: [...EDGE_NOTATIONS],
+            description:
+              "addEdge/updateEdge: how the connector reads. Defaults to association for use-case, ER, database-model and UML diagrams (static, no arrowhead) and directed elsewhere.",
+          },
+          sourceCardinality: {
+            type: "string",
+            enum: [...CARDINALITIES],
+            description:
+              "addEdge/updateEdge: multiplicity at the source end, rendered as text in the label. Multiplicity lives in the label, so restate both ends whenever updateEdge changes the label of a relationship that had them.",
+          },
+          targetCardinality: {
+            type: "string",
+            enum: [...CARDINALITIES],
+            description:
+              "addEdge/updateEdge: multiplicity at the target end, rendered as text in the label.",
+          },
           edgeId: { type: "string", description: "updateEdge/deleteEdge: existing edge id." },
         },
         required: ["op"],
@@ -866,6 +1121,289 @@ function beatKindsByEdgeId(beats: BeatInput[] | undefined): Map<string, BeatKind
   return kinds;
 }
 
+/** Element types that render their field list inside the shape, so their real
+ * height is driven by content rather than by the palette's default size. */
+const STRUCTURED_FIELD_NODE_TYPES = [
+  "table",
+  "er-entity",
+  "er-weak-entity",
+  "uml-class",
+  "uml-object",
+];
+
+/** Element types whose compartments hold UML `attributes` / `methods` lines. */
+const UML_MEMBER_NODE_TYPES = ["uml-class", "uml-object"];
+
+/**
+ * Estimate the box automatic layout and routing should reserve for a node.
+ *
+ * A shape's palette size says nothing about how wide its *label* renders, and
+ * auto-height shapes (tables, ER entities) report no height at all, so placing
+ * nodes on palette sizes alone produces diagrams whose boxes visually collide
+ * even though their nominal rectangles do not. Both the build path and the
+ * incremental edit path size nodes through here so they cannot drift apart.
+ */
+function estimateLayoutNode(node: {
+  id: string;
+  type: string;
+  label: string;
+  width?: number;
+  height?: number;
+  rows?: Array<{ name: string; type: string }>;
+  entityAttributes?: Array<{ name: string }>;
+  attributes?: Array<{ text: string }>;
+  methods?: Array<{ text: string }>;
+}): LayoutNode {
+  const size = getNodeSize(node.type);
+  const umlMembers =
+    node.attributes || node.methods
+      ? [...(node.attributes ?? []), ...(node.methods ?? [])]
+      : undefined;
+  // An empty list is not content. A table the agent supplied no columns for
+  // keeps its palette size rather than collapsing to a bare header strip.
+  const declaredFields = node.rows ?? node.entityAttributes ?? umlMembers;
+  const structured = declaredFields && declaredFields.length > 0 ? declaredFields : undefined;
+  const labelWidth = Math.min(520, Math.max(size.width, [...node.label].length * 8 + 40));
+  const contentWidth = node.rows
+    ? Math.max(
+        0,
+        ...node.rows.map(
+          (row) => Math.max((row.name.length * 8) / 0.6, (row.type.length * 8) / 0.4) + 40,
+        ),
+      )
+    : node.entityAttributes
+      ? Math.max(0, ...node.entityAttributes.map((row) => row.name.length * 8 + 48))
+      : umlMembers
+        ? // Members render monospaced, which is wider per character than the
+          // proportional label font.
+          Math.max(0, ...umlMembers.map((member) => member.text.length * 8 + 32))
+        : 0;
+  // A non-rectangular shape can only use part of its bounding box for text, so
+  // the box has to grow beyond the label's own footprint for the label to fit
+  // inside the drawn outline rather than spilling over it. The factor is
+  // relative to the ordinary rectangular inset, so rectangles are unchanged and
+  // only shapes that lose room to their geometry grow.
+  const growth = labelGrowthFactor(node.type);
+  const width = node.width ?? Math.min(2000, Math.max(labelWidth * growth.width, contentWidth));
+  const contentHeight = structured ? 40 + structured.length * 24 : 0;
+  const baseHeight = size.height > 0 ? size.height : AUTO_HEIGHT_LAYOUT_ESTIMATE;
+  // A shape that draws its own field list is sized by that list. Keeping the
+  // palette default as a floor as well left a three-row table carrying a
+  // fourth row of blank space under its last field.
+  const defaultHeight = structured ? contentHeight : Math.round(baseHeight * growth.height);
+  return {
+    id: node.id,
+    type: node.type,
+    width,
+    height: Math.max(
+      node.height ?? defaultHeight,
+      contentHeight,
+      // Wrapped labels need vertical room too: estimate the lines the shape's
+      // usable width forces, then give each one a row.
+      node.height ??
+        estimateWrappedLabelHeight(node.label, width * usableAreaRatio(node.type).width),
+    ),
+  };
+}
+
+/**
+ * Fraction of a shape's bounding box its inside label can actually occupy.
+ *
+ * A rectangle can use nearly all of it; a diamond's inscribed rectangle is
+ * about half of each axis; an ellipse about 0.7. These are the same ratios
+ * `SHAPE_LABEL_INSETS` applies at render time, so the box automatic layout
+ * reserves and the box the label is painted into agree.
+ */
+function usableAreaRatio(type: string): { width: number; height: number } {
+  return SHAPE_USABLE_AREA[type] ?? DEFAULT_USABLE_AREA;
+}
+
+/**
+ * How much bigger than a plain rectangle this shape must be to fit the same
+ * text. 1 for rectangles, ~1.6 for a diamond, ~1.14 for an ellipse.
+ */
+function labelGrowthFactor(type: string): { width: number; height: number } {
+  const usable = usableAreaRatio(type);
+  return {
+    width: DEFAULT_USABLE_AREA.width / usable.width,
+    height: DEFAULT_USABLE_AREA.height / usable.height,
+  };
+}
+
+/** Rough wrapped-label height for a given usable width, at the 14px base size. */
+function estimateWrappedLabelHeight(label: string, usableWidth: number): number {
+  if (usableWidth <= 0) return 0;
+  const perLine = Math.max(1, Math.floor(usableWidth / 8));
+  const lines = Math.max(1, Math.ceil([...label].length / perLine));
+  return lines * 20 + 24;
+}
+
+/**
+ * Push `box` straight down until it clears every box in `occupied`.
+ *
+ * Used for coordinates the agent did not supply: an explicit position is an
+ * anchor that always wins, so the only boxes free to move are automatic ones.
+ * Sliding on a single axis keeps the result predictable (a caller can still
+ * read the diagram top-to-bottom) and terminates because each step clears the
+ * collision it just found.
+ */
+function placeInOpenArea(box: Box, occupied: Box[], attempts: number): Box {
+  let candidate = box;
+  for (let attempt = 0; attempt <= attempts; attempt++) {
+    const collision = occupied.find((other) => boxesOverlap(candidate, other, 32));
+    if (!collision) break;
+    candidate = { ...candidate, y: collision.y + collision.height + 100 };
+  }
+  return candidate;
+}
+
+/**
+ * Run automatic layout, optionally top-to-bottom.
+ *
+ * The layered strategy only knows how to rank left-to-right, so a vertical
+ * diagram is produced by transposing: swap each node's width and height going
+ * in, then swap the resulting coordinates coming out. Rank spacing does not
+ * transpose with it — a connector label needs a wide horizontal channel but
+ * only two lines of vertical one — so a vertical layout asks for the vertical
+ * gap explicitly. Sequence diagrams are exempt because their lifelines are
+ * inherently vertical already.
+ */
+function layoutNodesWithDirection(
+  diagramType: VisualDiagramType,
+  nodes: LayoutNode[],
+  edges: LayoutEdge[],
+  direction: "LR" | "TB" | undefined,
+): Map<string, LayoutPosition> {
+  const transpose = direction === "TB" && diagramType !== "sequence";
+  const positions = layoutNodes(
+    diagramType,
+    transpose ? nodes.map((node) => ({ ...node, width: node.height, height: node.width })) : nodes,
+    edges,
+    transpose ? { rankGap: VERTICAL_RANK_GAP } : {},
+  );
+  if (transpose) {
+    positions.forEach((position) => {
+      const x = position.x;
+      position.x = position.y;
+      position.y = x;
+    });
+  }
+  return positions;
+}
+
+/**
+ * Where to start looking for space for a node the agent gave no position for.
+ *
+ * An empty canvas starts at the origin; otherwise the search begins just right
+ * of everything already placed, which is where a reader of a left-to-right
+ * diagram expects the next element, and guarantees the first candidate is
+ * clear so `placeInOpenArea` normally accepts it immediately.
+ */
+function nextOpenAnchor(occupied: Box[]): { x: number; y: number } {
+  if (occupied.length === 0) return { x: 0, y: 0 };
+  const right = Math.max(...occupied.map((box) => box.x + box.width));
+  const top = Math.min(...occupied.map((box) => box.y));
+  return { x: right + 120, y: top };
+}
+
+/**
+ * Compose a connector's visible label and notation from the semantic fields.
+ *
+ * Cardinality is rendered as text (`Customer [1] — Order [0..*]`) rather than
+ * crow's-foot glyphs, and `«include»`/`«extend»` keywords are prepended the
+ * way UML writes them — once, even when the agent already wrote the keyword
+ * into the label — so the same connector reads correctly whether it was
+ * created by a full rebuild or by an incremental edit.
+ */
+function composeEdgePresentation(edge: {
+  label?: string;
+  notation?: EdgeNotation;
+  source: string;
+  target: string;
+  sourceCardinality?: string;
+  targetCardinality?: string;
+}): { label: string; notation: EdgeNotation } {
+  const notation = edge.notation ?? "directed";
+  const cardinality =
+    edge.sourceCardinality || edge.targetCardinality
+      ? `${edge.source} [${edge.sourceCardinality ?? "?"}] — ${edge.target} [${edge.targetCardinality ?? "?"}]`
+      : "";
+  const stereotype = notation === "include" || notation === "extend" ? `«${notation}»` : "";
+  let authored = edge.label?.trim() ?? "";
+  if (stereotype) {
+    // An agent reading the use-case conventions naturally writes the keyword
+    // into the label itself. Strip it so the connector never reads
+    // "«include»/«include»", and so a plainly spelled keyword still comes out
+    // in the guillemets UML expects.
+    authored = authored.replace(
+      new RegExp(`^[«<]{0,2}\\s*${notation}\\s*[»>]{0,2}[\\s:-]*`, "i"),
+      "",
+    );
+  }
+  const label = [stereotype, authored, cardinality].filter(Boolean).join("\n");
+  return { label, notation };
+}
+
+/** Arrowhead for a notation: only a directed flow gets a closed arrowhead. */
+function markerForNotation(notation: EdgeNotation) {
+  return notation !== "association"
+    ? { markerEnd: { type: notation === "directed" ? MarkerType.ArrowClosed : MarkerType.Arrow } }
+    : { markerEnd: "" };
+}
+
+/**
+ * Reject structured field lists attached to a shape that cannot render them.
+ * Silently dropping them would leave the agent believing it authored a table
+ * whose columns are simply invisible.
+ */
+function assertStructuredFields(node: {
+  id: string;
+  type: string;
+  rows?: Array<{ id: string }>;
+  entityAttributes?: Array<{ id: string }>;
+  attributes?: Array<{ id: string }>;
+  methods?: Array<{ id: string }>;
+}): void {
+  if (node.rows && node.type !== "table")
+    throw new WebMCPDiagramInputError(`Node ${node.id}: rows require type table.`);
+  if (node.entityAttributes && !["er-entity", "er-weak-entity"].includes(node.type))
+    throw new WebMCPDiagramInputError(`Node ${node.id}: entityAttributes require an ER entity.`);
+  if ((node.attributes || node.methods) && !UML_MEMBER_NODE_TYPES.includes(node.type)) {
+    throw new WebMCPDiagramInputError(
+      `Node ${node.id}: attributes and methods require a UML class or object.`,
+    );
+  }
+  for (const entries of [node.rows, node.entityAttributes, node.attributes, node.methods]) {
+    if (entries && new Set(entries.map((entry) => entry.id)).size !== entries.length)
+      throw new WebMCPDiagramInputError(`Node ${node.id}: duplicate field ids.`);
+  }
+}
+
+/**
+ * The `data` fields that make a content-sized shape render at the height
+ * layout reserved for it. `layoutHeight` is what `TableNode`/`EntityNode`
+ * apply as `minHeight`, so routes planned around the reserved box match the
+ * box the DOM actually paints.
+ */
+function structuredNodeData(
+  node: {
+    type: string;
+    rows?: Array<{ id: string; name: string; type: string }>;
+    entityAttributes?: Array<{ id: string; name: string; isKey: boolean }>;
+    attributes?: Array<{ id: string; text: string }>;
+    methods?: Array<{ id: string; text: string }>;
+  },
+  layoutHeight: number,
+) {
+  return {
+    ...(STRUCTURED_FIELD_NODE_TYPES.includes(node.type) ? { layoutHeight } : {}),
+    ...(node.rows ? { rows: node.rows } : {}),
+    ...(node.entityAttributes ? { entityAttributes: node.entityAttributes } : {}),
+    ...(node.attributes ? { attributes: node.attributes } : {}),
+    ...(node.methods ? { methods: node.methods } : {}),
+  };
+}
+
 export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
   const parsed = replaceDiagramInputSchema.parse(input);
   const ids = new Set<string>();
@@ -874,21 +1412,15 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
     ids.add(node.id);
   }
 
-  const diagramType = inferDiagramTypeFromNodeTypes(
-    parsed.nodes.map((node) => node.type),
-    parsed.edges.some((edge) => edge.type !== undefined),
-  );
+  const diagramType =
+    parsed.diagramType ??
+    inferDiagramTypeFromNodeTypes(
+      parsed.nodes.map((node) => node.type),
+      parsed.edges.some((edge) => edge.type !== undefined),
+    );
   const sequenceRows = assignSequenceRows(parsed.edges);
   const edgeBeatKinds = beatKindsByEdgeId(parsed.beats);
-  const layoutNodeInputs: LayoutNode[] = parsed.nodes.map((node) => {
-    const size = getNodeSize(node.type);
-    return {
-      id: node.id,
-      type: node.type,
-      width: node.width ?? size.width,
-      height: node.height ?? (size.height > 0 ? size.height : AUTO_HEIGHT_LAYOUT_ESTIMATE),
-    };
-  });
+  const layoutNodeInputs: LayoutNode[] = parsed.nodes.map(estimateLayoutNode);
   const layoutEdgeInputs: LayoutEdge[] = parsed.edges.map((edge) => ({
     source: edge.source,
     target: edge.target,
@@ -897,14 +1429,16 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
   // explicit position always wins outright.
   const needsLayout = parsed.nodes.some((node) => !node.position);
   const computedPositions = needsLayout
-    ? layoutNodes(diagramType, layoutNodeInputs, layoutEdgeInputs)
+    ? layoutNodesWithDirection(diagramType, layoutNodeInputs, layoutEdgeInputs, parsed.direction)
     : null;
 
-  const nodes: AppNode[] = parsed.nodes.map((node) => {
+  const nodes: AppNode[] = parsed.nodes.map((node, index) => {
+    assertStructuredFields(node);
     const computed = computedPositions?.get(node.id);
     const position = node.position ?? computed ?? { x: 0, y: 0 };
     const data: AppNode["data"] = {
-      ...defaultNodeData(node.type, node.label),
+      ...defaultNodeData(node.type, node.label, { placeholderContent: false }),
+      ...structuredNodeData(node, layoutNodeInputs[index].height),
       ...(node.fillColor ? { fillColor: node.fillColor } : {}),
       ...(node.strokeColor ? { strokeColor: node.strokeColor } : {}),
       ...(node.textColor ? { textColor: node.textColor } : {}),
@@ -916,7 +1450,11 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
           }
         : {}),
     };
-    const style = nodeStyle(node.type, node.width, node.height);
+    const style = nodeStyle(
+      node.type,
+      layoutNodeInputs[index].width,
+      layoutNodeInputs[index].height,
+    );
     if (computed?.height !== undefined && !node.height) style.height = computed.height;
     return {
       id: node.id,
@@ -928,6 +1466,16 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
     };
   });
 
+  // Explicit coordinates are anchors; move only omitted coordinates to open space.
+  if (diagramType !== "sequence") {
+    const placed = nodes.filter((_, index) => parsed.nodes[index].position).map(nodeBox);
+    nodes.forEach((node, index) => {
+      if (parsed.nodes[index].position) return;
+      const box = placeInOpenArea(nodeBox(node), placed, nodes.length);
+      node.position = { x: box.x, y: box.y };
+      placed.push(box);
+    });
+  }
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
 
   // Position sequence-activation bars from the message rows their
@@ -989,9 +1537,15 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
     // An explicit `motion` field always wins. Otherwise, a beat that names
     // this edge's semantic kind derives a preset from the visual grammar
     // registry — the same resolution `drawcms_recommend_visuals` uses.
-    const derivedMotion = edge.motion
-      ? null
-      : resolveBeatEdgeMotion(edgeBeatKinds.get(id), edge.label, diagramType);
+    const staticNotation = ["use-case", "entity-relationship", "database-model", "uml"].includes(
+      diagramType,
+    );
+    const implicitControlFlow =
+      ["flowchart", "bpmn"].includes(diagramType) && !edgeBeatKinds.has(id);
+    const derivedMotion =
+      edge.motion || staticNotation || implicitControlFlow
+        ? null
+        : resolveBeatEdgeMotion(edgeBeatKinds.get(id), edge.label, diagramType);
     const motionFields = edge.motion
       ? {
           preset: edge.motion.preset,
@@ -1030,21 +1584,44 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
       };
     }
 
-    const routingMode = edge.routing ?? derivedRouting ?? "curve";
+    const structural = STRUCTURAL_NOTATION_DIAGRAM_TYPES.has(diagramType);
+    const { label, notation } = composeEdgePresentation({
+      ...edge,
+      notation: edge.notation ?? (structural ? "association" : "directed"),
+    });
+    const routingMode =
+      edge.routing ?? (diagramType === "general" ? (derivedRouting ?? "curve") : "elbow");
     const handles = defaultEdgeHandles(source, target);
     return {
       id,
       source: edge.source,
       target: edge.target,
       ...handles,
-      ...(edge.label ? { label: edge.label } : {}),
+      ...(label ? { label } : {}),
+      ...markerForNotation(notation),
       data: {
-        ...(edge.label ? { label: edge.label } : {}),
+        ...(label ? { label } : {}),
+        notation,
         routingMode,
         ...motionFields,
       },
     };
   });
+
+  routeDiagramEdges(
+    nodes,
+    edges,
+    new Set(
+      edges
+        .filter(
+          (edge, index) =>
+            !parsed.edges[index].type &&
+            (parsed.edges[index].routing === "elbow" ||
+              (!parsed.edges[index].routing && diagramType !== "general")),
+        )
+        .map((edge) => edge.id),
+    ),
+  );
 
   const knownNodeIds = new Set(nodes.map((node) => node.id));
   const knownEdgeIds = new Set(edges.map((edge) => edge.id));
@@ -1054,7 +1631,12 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
       ? storyFromBeats(parsed.beats, parsed.name, knownNodeIds, knownEdgeIds)
       : createEmptyStory();
 
-  return createDocument({ nodes, edges, meta: { name: parsed.name }, motion: { story } });
+  return createDocument({
+    nodes,
+    edges,
+    meta: { name: parsed.name, diagramType },
+    motion: { story },
+  });
 }
 
 /**
@@ -1093,6 +1675,18 @@ function resolveGraphEditOperations(
   const nodesById = new Map(document.nodes.map((node) => [node.id, node as AppNode]));
   // Rows already used by existing sequence messages must not be reassigned.
   let nextSequenceRowNumber = nextSequenceRow(document.edges as AppEdge[]);
+  // An incremental edit must obey the notation the diagram was authored in,
+  // otherwise a connector added to an ER model arrives as an animated flow
+  // arrow while every neighbor is a static association.
+  const diagramType = inferVisualDiagramType(document);
+  const structural = STRUCTURAL_NOTATION_DIAGRAM_TYPES.has(diagramType);
+  // Every box a new node has to avoid. Nodes added earlier in this batch are
+  // appended as they are placed so two additions cannot land on each other.
+  const occupied = document.nodes.map((node) => nodeBox(node as AppNode));
+  // Edges created here still need obstacle-aware geometry, and edges whose
+  // endpoint moved have geometry that no longer describes the diagram.
+  const addedEdges: AppEdge[] = [];
+  const movedNodeIds = new Set<string>();
 
   const requireNode = (id: string) => {
     const node = nodesById.get(id);
@@ -1100,16 +1694,18 @@ function resolveGraphEditOperations(
     return node;
   };
 
-  return operations.map((operation): GraphEditOperation => {
+  const resolved = operations.map((operation): GraphEditOperation => {
     switch (operation.op) {
       case "addNode": {
         if (nodeIds.has(operation.id)) {
           throw new WebMCPDiagramInputError(`Duplicate node id: ${operation.id}`);
         }
         nodeIds.add(operation.id);
-        const position = operation.position ?? { x: 300, y: 200 };
+        assertStructuredFields(operation);
+        const layout = estimateLayoutNode(operation);
         const data: AppNode["data"] = {
-          ...defaultNodeData(operation.type, operation.label),
+          ...defaultNodeData(operation.type, operation.label, { placeholderContent: false }),
+          ...structuredNodeData(operation, layout.height),
           ...(operation.fillColor ? { fillColor: operation.fillColor } : {}),
           ...(operation.strokeColor ? { strokeColor: operation.strokeColor } : {}),
           ...(operation.textColor ? { textColor: operation.textColor } : {}),
@@ -1121,12 +1717,24 @@ function resolveGraphEditOperations(
               }
             : {}),
         };
+        const style = nodeStyle(operation.type, layout.width, layout.height);
+        // Land the node in free space rather than on a fixed coordinate that
+        // is almost certainly already covered on a non-empty canvas.
+        const requested = operation.position ?? nextOpenAnchor(occupied);
+        const box = operation.position
+          ? { ...requested, width: layout.width, height: layout.height }
+          : placeInOpenArea(
+              { ...requested, width: layout.width, height: layout.height },
+              occupied,
+              occupied.length,
+            );
+        occupied.push(box);
         const node: AppNode = {
           id: operation.id,
-          position,
+          position: { x: box.x, y: box.y },
           data,
           type: nodeRendererType(operation.type),
-          style: nodeStyle(operation.type, operation.width, operation.height),
+          style,
           ...(nodeZIndex(operation.type) !== undefined
             ? { zIndex: nodeZIndex(operation.type) }
             : {}),
@@ -1148,6 +1756,7 @@ function resolveGraphEditOperations(
           if (operation.motion.speed !== undefined) dataPatch.motionSpeed = operation.motion.speed;
           Object.assign(dataPatch, resolvePatchedMotionLoop(operation.motion));
         }
+        if (operation.position) movedNodeIds.add(operation.nodeId);
         return {
           op: "updateNode",
           nodeId: operation.nodeId,
@@ -1208,28 +1817,35 @@ function resolveGraphEditOperations(
           };
         }
 
-        const routingMode = operation.routing ?? "curve";
+        const { label, notation } = composeEdgePresentation({
+          ...operation,
+          notation: operation.notation ?? (structural ? "association" : "directed"),
+        });
+        const routingMode = operation.routing ?? (diagramType === "general" ? "curve" : "elbow");
         const handles = defaultEdgeHandles(source, target);
-        return {
-          op: "addEdge",
-          edge: {
-            id,
-            source: operation.source,
-            target: operation.target,
-            ...handles,
-            ...(operation.label ? { label: operation.label } : {}),
-            data: {
-              ...(operation.label ? { label: operation.label } : {}),
-              routingMode,
-              ...motionFields,
-            },
+        const edge: AppEdge = {
+          id,
+          source: operation.source,
+          target: operation.target,
+          ...handles,
+          ...(label ? { label } : {}),
+          ...markerForNotation(notation),
+          data: {
+            ...(label ? { label } : {}),
+            notation,
+            routingMode,
+            ...motionFields,
           },
         };
+        if (routingMode === "elbow") addedEdges.push(edge);
+        return { op: "addEdge", edge };
       }
       case "updateEdge": {
         if (!edgeIds.has(operation.edgeId)) {
           throw new WebMCPDiagramInputError(`Unknown edge id: ${operation.edgeId}`);
         }
+        const existing = document.edges.find((edge) => edge.id === operation.edgeId) as
+          AppEdge | undefined;
         const dataPatch: Record<string, unknown> = {};
         if (operation.motion) {
           if (operation.motion.preset === null) dataPatch.preset = undefined;
@@ -1238,11 +1854,39 @@ function resolveGraphEditOperations(
           if (operation.motion.speed !== undefined) dataPatch.motionSpeed = operation.motion.speed;
           Object.assign(dataPatch, resolvePatchedMotionLoop(operation.motion));
         }
+        // A new label no longer fits the box the stored route reserved for the
+        // old one, so drop the snapshot and let the renderer fall back.
+        const relabelled =
+          operation.label !== undefined ||
+          operation.notation !== undefined ||
+          operation.sourceCardinality !== undefined ||
+          operation.targetCardinality !== undefined;
+        if (relabelled) dataPatch.diagramRoute = undefined;
+        // Multiplicity is rendered into the label text, so a bare relabel of an
+        // ER or database relationship would erase it. Recompose through the
+        // same helper the build path uses, keeping the notation the connector
+        // already carries unless this operation changes it.
+        let label: string | undefined;
+        if (relabelled) {
+          const composed = composeEdgePresentation({
+            label: operation.label,
+            notation: operation.notation ?? (existing?.data?.notation as EdgeNotation | undefined),
+            source: existing?.source ?? "",
+            target: existing?.target ?? "",
+            sourceCardinality: operation.sourceCardinality,
+            targetCardinality: operation.targetCardinality,
+          });
+          label = composed.label;
+          if (operation.notation !== undefined) {
+            dataPatch.notation = composed.notation;
+            Object.assign(dataPatch, markerForNotation(composed.notation));
+          }
+        }
         return {
           op: "updateEdge",
           edgeId: operation.edgeId,
           dataPatch,
-          ...(operation.label !== undefined ? { label: operation.label } : {}),
+          ...(label !== undefined ? { label } : {}),
         };
       }
       case "deleteEdge": {
@@ -1254,6 +1898,122 @@ function resolveGraphEditOperations(
       }
     }
   });
+
+  // Plan geometry for the connectors this batch created, against the diagram
+  // as it will look once the batch is applied. Routing runs after the whole
+  // batch so an edge added before its obstacle still avoids it.
+  if (addedEdges.length > 0) {
+    const projected = [...nodesById.values()];
+    const surviving = (document.edges as AppEdge[]).filter((edge) => edgeIds.has(edge.id));
+    routeDiagramEdges(
+      projected,
+      [...surviving, ...addedEdges],
+      new Set(addedEdges.map((edge) => edge.id)),
+    );
+  }
+
+  // Moving a node invalidates every route that ended on it. Clearing the
+  // snapshot returns those connectors to live elbow geometry instead of
+  // leaving them drawn against coordinates that no longer exist.
+  const staleRouteEdges = movedNodeIds.size
+    ? (document.edges as AppEdge[]).filter(
+        (edge) =>
+          edge.data?.diagramRoute &&
+          edgeIds.has(edge.id) &&
+          (movedNodeIds.has(edge.source) || movedNodeIds.has(edge.target)),
+      )
+    : [];
+
+  return [
+    ...resolved,
+    ...staleRouteEdges.map((edge): GraphEditOperation => ({
+      op: "updateEdge",
+      edgeId: edge.id,
+      dataPatch: { diagramRoute: undefined },
+    })),
+  ];
+}
+
+/**
+ * Re-derive positions and connector geometry for a diagram that already exists.
+ *
+ * `drawcms_replace_diagram` can only produce a readable diagram by rebuilding
+ * it, which discards undo history and any hand edits. This expresses the same
+ * layout and routing passes as ordinary graph edits instead, so tidying is one
+ * undoable action and a human's subsequent Cmd+Z restores exactly what they
+ * had. It is also how a diagram recovers from `STALE_AUTOMATIC_ROUTE` after
+ * someone drags a node.
+ */
+function resolveTidyOperations(
+  document: DrawCMSDocument,
+  options: { diagramType?: VisualDiagramType; direction?: "LR" | "TB"; scope: TidyScope },
+): { operations: GraphEditOperation[]; diagramType: VisualDiagramType; relaidOut: boolean } {
+  const diagramType = options.diagramType ?? inferVisualDiagramType(document);
+  const nodes = document.nodes.map((node) => ({ ...node }) as AppNode);
+  const edges = document.edges.map(
+    (edge) => ({ ...edge, data: { ...edge.data } }) as unknown as AppEdge,
+  );
+  const operations: GraphEditOperation[] = [];
+
+  // Sequence lifelines and activation bars are positioned from the message
+  // rows they participate in rather than by a graph layout, so re-ranking them
+  // would scramble a correct diagram. Report that rather than pretending.
+  const relaidOut = diagramType !== "sequence" && options.scope !== "connectors";
+  if (relaidOut) {
+    const layoutInputs = nodes.map((node) =>
+      estimateLayoutNode({
+        id: node.id,
+        type: node.data.type,
+        label: node.data.label,
+        // Preserve a size that is already on the canvas so tidying twice is a
+        // no-op rather than slowly drifting every box.
+        width: Number(node.style?.width) || undefined,
+        height: Number(node.style?.height) || undefined,
+        rows: node.data.rows as Array<{ name: string; type: string }> | undefined,
+        entityAttributes: node.data.entityAttributes as Array<{ name: string }> | undefined,
+      }),
+    );
+    const positions = layoutNodesWithDirection(
+      diagramType,
+      layoutInputs,
+      edges
+        .filter((edge) => !isSequenceEdgeType(edge.data?.sequenceType))
+        .map((edge) => ({ source: edge.source, target: edge.target })),
+      options.direction,
+    );
+    for (const node of nodes) {
+      const next = positions.get(node.id);
+      if (!next) continue;
+      if (next.x === node.position.x && next.y === node.position.y) continue;
+      node.position = { x: next.x, y: next.y };
+      operations.push({ op: "updateNode", nodeId: node.id, position: { x: next.x, y: next.y } });
+    }
+  }
+
+  if (options.scope !== "positions") {
+    // Re-plan every connector the router owns, against the positions above.
+    const eligible = new Set(
+      edges
+        .filter(
+          (edge) =>
+            !isSequenceEdgeType(edge.data?.sequenceType) && edge.data?.routingMode === "elbow",
+        )
+        .map((edge) => edge.id),
+    );
+    if (eligible.size > 0) {
+      routeDiagramEdges(nodes, edges, eligible);
+      for (const edge of edges) {
+        if (!eligible.has(edge.id)) continue;
+        operations.push({
+          op: "updateEdge",
+          edgeId: edge.id,
+          dataPatch: { diagramRoute: edge.data?.diagramRoute },
+        });
+      }
+    }
+  }
+
+  return { operations, diagramType, relaidOut };
 }
 
 export function createDrawCMSWebMCPTools(adapter: DrawCMSWebMCPAdapter): WebMCPToolDefinition[] {
@@ -1358,6 +2118,7 @@ export function createDrawCMSWebMCPTools(adapter: DrawCMSWebMCPAdapter): WebMCPT
             documentName: document.meta.name,
             nodeCount: document.nodes.length,
             edgeCount: document.edges.length,
+            validation: validateDiagramVisualGrammar(document),
             animatedNodeCount: document.nodes.filter((node) => node.data.preset).length,
             animatedEdgeCount: document.edges.filter((edge) => edge.data?.preset).length,
           };
@@ -1392,6 +2153,44 @@ export function createDrawCMSWebMCPTools(adapter: DrawCMSWebMCPAdapter): WebMCPT
           };
           for (const operation of operations) counts[operation.op] += 1;
           return { ok: true, operationCount: operations.length, ...counts };
+        } catch (error) {
+          return toErrorResult(error);
+        }
+      },
+      annotations: { untrustedContentHint: true },
+    },
+    {
+      name: "drawcms_tidy_diagram",
+      title: "Tidy DrawCMS layout and connectors",
+      description:
+        "Re-derives element positions and connector geometry for the diagram already on the canvas so nothing overlaps, without rebuilding it or clearing undo history. Use this after incremental edits, or after someone has dragged elements around, to restore a readable layout; use scope to re-derive only positions or only connectors.",
+      inputSchema: tidyDiagramJsonSchema,
+      execute: async (input, options) => {
+        const result = tidyDiagramInputSchema.safeParse(input ?? {});
+        if (!result.success) return toErrorResult(result.error);
+        try {
+          if (options?.signal?.aborted)
+            throw new DOMException("Tool execution aborted.", "AbortError");
+          const document = adapter.getDocument();
+          const tidied = resolveTidyOperations(document, result.data);
+          if (tidied.operations.length > 0) await adapter.applyGraphEdit(tidied.operations);
+          return {
+            ok: true,
+            diagramType: tidied.diagramType,
+            movedCount: tidied.operations.filter((operation) => operation.op === "updateNode")
+              .length,
+            reroutedCount: tidied.operations.filter((operation) => operation.op === "updateEdge")
+              .length,
+            ...(tidied.relaidOut
+              ? {}
+              : {
+                  note:
+                    tidied.diagramType === "sequence"
+                      ? "Sequence lifelines are positioned from their message rows, so positions were left untouched."
+                      : "Positions were left untouched because scope was connectors.",
+                }),
+            validation: validateDiagramVisualGrammar(adapter.getDocument(), tidied.diagramType),
+          };
         } catch (error) {
           return toErrorResult(error);
         }

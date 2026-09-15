@@ -117,6 +117,15 @@ describe("parseDocument", () => {
     expect(() => parseDocument(doc)).toThrow(DocumentValidationError);
   });
 
+  it("persists the authored diagram notation and rejects unknown ones", () => {
+    const doc = JSON.parse(deterministicStringify(createDocument({ nodes, edges })));
+    doc.meta.diagramType = "entity-relationship";
+    expect(parseDocument(doc).meta.diagramType).toBe("entity-relationship");
+
+    doc.meta.diagramType = "mind-map";
+    expect(() => parseDocument(doc)).toThrow(DocumentValidationError);
+  });
+
   it("preserves unknown future fields at every level", () => {
     const doc = JSON.parse(deterministicStringify(createDocument({ nodes, edges })));
     doc.futureRootField = { experimental: true };

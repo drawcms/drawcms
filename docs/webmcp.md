@@ -42,16 +42,17 @@ origin isolation with `Origin-Agent-Cluster: ?0`.
 
 ## Exposed tools
 
-| Tool                         | Effect                                                                                                                                                       |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `drawcms_get_diagram`        | Reads the complete current DrawCMS document. Read-only.                                                                                                      |
-| `drawcms_get_visual_grammar` | Queries the complete element, motion, and relationship dictionary by category, diagram type, id, or free-text intent. Read-only.                             |
-| `drawcms_recommend_visuals`  | Maps semantic entities and relationships to suitable elements, connector types, motion, loop behavior, and playback order. Read-only.                        |
-| `drawcms_validate_diagram`   | Reviews the current diagram for unregistered elements, shape-purpose mismatches, unsuitable motion, sequence geometry problems, overlap, and narration gaps. |
-| `drawcms_replace_diagram`    | Builds and displays a complete diagram from nodes, connectors, motion, and beats or an explicit story. Replaces the canvas and clears undo history.          |
-| `drawcms_edit_diagram`       | Adds, updates, deletes, and connects nodes and connectors on the current diagram as one undoable batch, without rebuilding it.                               |
-| `drawcms_set_motion`         | Sets or clears motion presets, speed, and loop behavior on existing nodes and connectors by id, without touching structure or narration.                     |
-| `drawcms_set_story`          | Replaces presentation scenes and steps — titles, descriptions, pacing, and highlighted targets — without touching structure or motion presets.               |
+| Tool                         | Effect                                                                                                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `drawcms_get_diagram`        | Reads the complete current DrawCMS document. Read-only.                                                                                                                 |
+| `drawcms_get_visual_grammar` | Queries the complete element, motion, and relationship dictionary by category, diagram type, id, or free-text intent. Read-only.                                        |
+| `drawcms_recommend_visuals`  | Maps semantic entities and relationships to suitable elements, connector types, motion, loop behavior, and playback order. Read-only.                                   |
+| `drawcms_validate_diagram`   | Reviews the current diagram for unregistered elements, shape-purpose mismatches, unsuitable motion, sequence geometry problems, overlap, and narration gaps.            |
+| `drawcms_replace_diagram`    | Builds and displays a complete diagram from nodes, connectors, motion, and beats or an explicit story. Replaces the canvas and clears undo history.                     |
+| `drawcms_edit_diagram`       | Adds, updates, deletes, and connects nodes and connectors on the current diagram as one undoable batch, without rebuilding it.                                          |
+| `drawcms_tidy_diagram`       | Re-derives positions and connector geometry for the diagram already on the canvas so nothing overlaps, as one undoable batch. Scope it to positions or connectors only. |
+| `drawcms_set_motion`         | Sets or clears motion presets, speed, and loop behavior on existing nodes and connectors by id, without touching structure or narration.                                |
+| `drawcms_set_story`          | Replaces presentation scenes and steps — titles, descriptions, pacing, and highlighted targets — without touching structure or motion presets.                          |
 
 ## Visual grammar registry
 
@@ -72,8 +73,12 @@ Every registry entry describes:
 
 Motion presets and relationship types have corresponding entries covering
 directionality, typical use, unsuitable use, loop policy, and a reduced-motion
-alternative. Palette-completeness tests fail when an editor element is added
-without a registry entry.
+alternative. Relationship entries also carry the `notation` value to pass on a
+built connector, so the structural notations (`association`, `include`,
+`extend`, `message-flow`) are discoverable through the registry rather than
+only through a tool's schema. Palette-completeness tests fail when an editor
+element is added without a registry entry, and every diagram type is required
+to carry its own authoring conventions.
 
 Agents should query the relevant grammar section and call
 `drawcms_recommend_visuals` before replacing or editing a semantic diagram. For
@@ -81,6 +86,14 @@ example, a sequence diagram recommendation uses native participant lifelines,
 activation bars, synchronous or asynchronous message connectors, dashed return
 messages, and self-message loops. Message motion is recommended once in
 chronological order; only the complete scene should loop.
+
+Recommendation reads both the `role` and the `label` of each entity, matching
+whole words. An entity given `{ role: "component", label: "Postgres" }` is still
+recognized as a datastore, a named technology gets its own mark (Redis,
+Postgres, Kubernetes and similar resolve to their logo elements rather than a
+generic box), and a label ending in "?" is treated as a branch in every notation
+that has one. Whole-word matching is what keeps "Build pipeline" from reading as
+a front end.
 
 `drawcms_replace_diagram` and `drawcms_edit_diagram` accept every asset-free
 node element in the registry, supply required defaults for tables, UML
@@ -136,9 +149,13 @@ a position for — an explicit `position` always wins:
 - **`flowchart`, `architecture`, `data-flow`, `lifecycle`** diagrams rank
   nodes by longest path over the edges (a topological layering) and place
   ranks left to right, with a barycenter sweep that reduces connector
-  crossings. A real cycle in the edge set falls back to the grid below.
-- Everything else — **`general`, `uml`, `bpmn`, `entity-relationship`**, and
-  any cyclic graph among the ranked types — uses a readable grid.
+  crossings. Cycles retain a forward backbone with separately routed feedback edges.
+- **`bpmn`, `uml`, `entity-relationship`, `database-model`** also use size-aware layers.
+- **`use-case`** separates actors from goals; **`general`** uses a size-aware grid.
+
+Automatic placement then pushes any node whose position was omitted clear of
+the nodes that have explicit coordinates, and `drawcms_tidy_diagram` re-runs the
+whole pass over a diagram that already exists.
 
 ## Sequence message rows
 
@@ -167,6 +184,49 @@ duplicate id fails the entire batch with nothing partially applied.
 This is deliberately different from `drawcms_replace_diagram`, which still
 clears undo history on every call. Replacing is for building a diagram from
 scratch; editing is for refining what is already on the canvas.
+
+An incremental edit inherits the notation the diagram was authored in, so
+refining a diagram does not degrade it:
+
+- A node added without a `position` is placed in free space rather than on a
+  fixed coordinate, and two positionless additions in the same batch never land
+  on each other.
+- `addNode` accepts `rows` and `entityAttributes`, and reserves height for the
+  fields exactly as a full rebuild does.
+- `addEdge` accepts `notation`, `sourceCardinality`, and `targetCardinality`,
+  and defaults to the same orthogonal routing and structural association the
+  diagram's other connectors already use — not a directed curve.
+- `updateEdge` accepts those three too. Multiplicity is rendered _into_ the
+  label text, so restate `sourceCardinality` and `targetCardinality` whenever
+  you change the label of a relationship that had them; a bare `label` patch
+  replaces the composed text and `drawcms_validate_diagram` will then report
+  `MISSING_CARDINALITY`.
+- New connectors are routed around the shapes already on the canvas.
+- Moving a node discards the stored routes of the connectors attached to it, so
+  they redraw cleanly instead of tracing coordinates that no longer exist.
+
+## Tidying an existing layout
+
+`drawcms_tidy_diagram` re-runs layout and routing over the diagram that is
+already on the canvas and applies the result as one undoable batch. Unlike
+`drawcms_replace_diagram` it preserves undo history, so a person can revert the
+tidy with a single <kbd>Cmd</kbd>+<kbd>Z</kbd> and get their arrangement back.
+
+Use it after a series of incremental edits, or to recover from a
+`STALE_AUTOMATIC_ROUTE` warning once someone has dragged elements around.
+`scope` controls what is re-derived:
+
+| `scope`      | Effect                                                            |
+| ------------ | ----------------------------------------------------------------- |
+| `all`        | Default. Re-derives positions and connector geometry.             |
+| `positions`  | Moves elements only; leaves stored routes alone.                  |
+| `connectors` | Re-routes only, keeping a deliberate human arrangement untouched. |
+
+It accepts the same optional `diagramType` and `direction` as a build, so a
+diagram can be re-laid out top-to-bottom without rebuilding it. Tidying an
+already tidy diagram moves nothing. Sequence diagrams are left in place —
+their lifelines are positioned from message rows rather than by graph layout —
+and the result says so in a `note`.
 
 ## Retiming motion and narration without rebuilding
 
@@ -204,8 +264,8 @@ Schema alone. Duplicate IDs, unknown edge or story-target endpoints, unknown
 ids passed to `drawcms_set_motion` / `drawcms_set_story` / `drawcms_edit_diagram`,
 unsupported element types, invalid presets, sequence-row exhaustion, and
 out-of-range values all return a concise, retryable error that an agent can
-correct and retry — never a partially applied change. Replacement and
-incremental edits go through the same versioned document, undo history, and
+correct and retry — never a partially applied change. Replacement, incremental
+edits, and tidying go through the same versioned document, undo history, and
 persistence boundaries as human-authored content, so the visible canvas and
 local autosave stay synchronized.
 
@@ -219,3 +279,111 @@ WebMCP is a draft Community Group report rather than a W3C standard and may
 change. DrawCMS keeps its WebMCP-specific types behind a small adapter so hosts
 can follow those changes without coupling their document model to the browser
 API.
+
+## Readable flow, use-case, BPMN, and database diagrams
+
+`drawcms_replace_diagram` accepts an explicit `diagramType` and `direction`
+(`LR`, the default, or `TB`). Flow diagrams use `flowchart`; UML actors and
+user goals use `use-case`; conceptual ERDs use `entity-relationship`; physical
+schemas use `database-model`. Omit positions to use automatic placement.
+
+- Layout uses actual requested dimensions and estimates label/content space.
+  BPMN and cyclic flows retain forward ranks, with feedback connectors routed
+  separately. Use-case actors occupy a separate column from goals.
+- Tables accept `rows: [{ id, name, type }]`; ER entities accept
+  `entityAttributes: [{ id, name, isKey }]`; UML classes and objects accept
+  `attributes` and `methods` as `[{ id, text }]` compartment lines written the
+  way UML writes them (`- total: Money`, `+ addLine(item): void`). Their layout
+  reserves space for every field. Compartments an agent does not supply stay
+  **empty** — a tool-built class never invents `- id: int` placeholder members,
+  because a reader cannot tell invented fields from authored ones. (Dragging the
+  same element off the palette still seeds sample content to edit.) Mark
+  physical PK/FK columns in their names and name FK mappings on connectors.
+  Supply real fields instead of relying on sample defaults.
+- Shapes are sized for the space their text can actually occupy, not their
+  bounding box. A diamond's inscribed area is about half its box on each axis
+  and an ellipse's about 70%, so a decision or a use case is grown enough for
+  its label to sit inside the drawn outline rather than spilling over it.
+- Semantic diagrams default to orthogonal connectors. The router chooses face
+  anchors and clear channels, penalizes shared paths, and places wrapped labels
+  beside segments away from nodes, connectors, and earlier labels.
+- `notation` supports `directed`, `association`, `include`, `extend`, and
+  `message-flow`. Associations are undirected. Include/extend are dashed and
+  point toward the included/base use case. BPMN message flows are dashed with
+  open arrowheads; model participant ownership explicitly.
+- `sourceCardinality` and `targetCardinality` accept `0..1`, `1`, `0..*`, and
+  `1..*`. They appear as endpoint-qualified text in the relationship label;
+  these are **not crow's-foot glyphs**.
+- Structural models stay static by default; flowcharts and BPMN use solid control-flow lines unless motion is explicitly requested or supplied through a beat.
+- The notation is recorded on the document as `meta.diagramType`, so later
+  validation and tidying use the notation you authored rather than re-guessing
+  it from shapes.
+- Every build returns a `validation` report. Check warnings before presenting:
+  overlapping elements, unlabeled decision branches, invalid BPMN event
+  direction, gateway message flows, and unresolved routing/label collisions.
+  Notation-specific conventions are checked too — a physical table with no
+  primary key or no columns, an ER entity whose attributes name no key, a
+  relationship that states no multiplicity, a use-case diagram with no actor,
+  two actors associated directly, and `«include»`/`«extend»` used anywhere
+  other than between two use cases.
+- The element you choose is also checked against the label it carries, because
+  an explicit `type` is otherwise only validated for existing. A service shape
+  carrying a datastore name (`LABEL_DESCRIBES_DATASTORE`), a store shape
+  carrying a service name (`DATASTORE_SEMANTIC_MISMATCH`), a bare role such as
+  "Customer" drawn as a system element (`LABEL_DESCRIBES_ACTOR`), a label ending
+  in "?" that is not drawn as a decision (`LABEL_ASKS_A_QUESTION`), and an
+  element belonging to a different notation (`ELEMENT_OUTSIDE_NOTATION`) each
+  return a warning naming the element.
+- Grouping frames — `data-stage` and the `boundary-*` family, plus the plain
+  container shapes — are meant to enclose other elements. One that is wired
+  between two steps with nothing inside it draws a large empty box with its
+  title in a corner, and returns `CONTAINER_USED_AS_STEP`.
+
+Example physical schema:
+
+```json
+{
+  "name": "Customer orders",
+  "diagramType": "database-model",
+  "nodes": [
+    {
+      "id": "customers",
+      "type": "table",
+      "label": "customers",
+      "rows": [{ "id": "id", "name": "id PK", "type": "uuid" }]
+    },
+    {
+      "id": "orders",
+      "type": "table",
+      "label": "orders",
+      "rows": [
+        { "id": "id", "name": "id PK", "type": "uuid" },
+        { "id": "customer_id", "name": "customer_id FK", "type": "uuid" }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "customers",
+      "target": "orders",
+      "label": "orders.customer_id → customers.id",
+      "sourceCardinality": "1",
+      "targetCardinality": "0..*"
+    }
+  ]
+}
+```
+
+Explicit positions remain fixed; omitted positions move out of their way.
+Explicit straight/curve routes remain manual. Saved automatic routes fall back
+to ordinary elbow geometry after their endpoint moves/resizes or their bend
+is edited; call `drawcms_tidy_diagram` to recompute obstacle clearance without
+rebuilding the diagram. Multiplicity is accepted in either convention — the
+endpoint-qualified text a build composes, or a bare Chen marker such as `1` or
+`N` against a relationship diamond. Layout is a bounded
+heuristic, not a guarantee for arbitrary dense graphs or fixed overlaps. When
+the router cannot find a clear path or label position it reports
+`CONNECTOR_NODE_COLLISION` or `CONNECTOR_LABEL_COLLISION` rather than shipping
+geometry it knows is wrong.
+Pools, lanes, and system boundaries still need explicit grouping/ownership;
+the tool does not infer business participants or claim full BPMN conformance.
