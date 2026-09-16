@@ -71,3 +71,28 @@ export const AnimationStateContext = createContext<AnimationStateType>({
 export function useAnimationState() {
   return useContext(AnimationStateContext);
 }
+
+/**
+ * Host-supplied image storage, reachable from node renderers.
+ *
+ * The inspector receives the same function as a prop, but cropping happens
+ * inside a node, which has no route to editor props. Both paths must use it:
+ * the crop dialog re-encodes its result as a PNG data URL, and a cropped photo
+ * as PNG is routinely larger than the JPEG it came from — so a crop can blow a
+ * host's document size limit even when the original upload was stored remotely.
+ */
+export const ImageUploaderContext = createContext<((file: File) => Promise<string>) | null>(null);
+
+export function useImageUploader() {
+  return useContext(ImageUploaderContext);
+}
+
+/**
+ * Turn a data URL produced by `canvas.toDataURL` into a File the uploader can
+ * post. Kept here so the canvas and the inspector agree on the conversion.
+ */
+export async function dataUrlToFile(dataUrl: string, filename: string): Promise<File> {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], filename, { type: blob.type || "image/png" });
+}

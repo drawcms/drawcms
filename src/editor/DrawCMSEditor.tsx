@@ -12,9 +12,10 @@ import {
   DialogTitle,
 } from "./components/ui/dialog";
 import {
-  NodeCallbacksContext,
   AnimationStateContext,
   EdgeRoutingCallbacksContext,
+  ImageUploaderContext,
+  NodeCallbacksContext,
 } from "./contexts";
 import { useEditorState } from "./hooks/useEditorState";
 import { usePanelPresence } from "./hooks/usePanelPresence";
@@ -1259,45 +1260,47 @@ export function DrawCMSEditor({
             !isPresentation && state.showLeftPanel ? "left-0 sm:left-[300px]" : "left-0"
           } ${hasRightPanel ? "right-0 lg:right-[300px]" : "right-0"}`}
         >
-          <NodeCallbacksContext.Provider value={state.nodeCallbacksRef.current}>
-            <EdgeRoutingCallbacksContext.Provider
-              value={isPresentation ? null : state.edgeRoutingCallbacks}
-            >
-              <AnimationStateContext.Provider
-                value={isPresentation ? presentationAnimationState : state.animationState}
+          <ImageUploaderContext.Provider value={onUploadImage ?? null}>
+            <NodeCallbacksContext.Provider value={state.nodeCallbacksRef.current}>
+              <EdgeRoutingCallbacksContext.Provider
+                value={isPresentation ? null : state.edgeRoutingCallbacks}
               >
-                <DiagramCanvas
-                  nodes={state.flowNodes}
-                  edges={isPresentation ? presentationEdges : state.flowEdges}
-                  onNodesChange={state.onNodesChange}
-                  onEdgesChange={state.onEdgesChange}
-                  onConnect={state.onConnect}
-                  setSelectedNodeId={state.setSelectedNodeId}
-                  setSelectedEdgeId={state.setSelectedEdgeId}
-                  onBlankCanvasClick={isPresentation ? undefined : dismissCanvasOverlays}
-                  onRequestContextMenu={isPresentation ? undefined : setStepMenu}
-                  onOpenSteps={isPresentation ? undefined : openSteps}
-                  onAddNode={isPresentation ? undefined : state.handleAddNode}
-                  onNodeDragStop={isPresentation ? undefined : state.handleNodeDragStop}
-                  activeSequenceEdgeTool={isPresentation ? null : state.activeSequenceEdgeTool}
-                  onSequenceEdgeNodeClick={
-                    isPresentation ? undefined : state.handleSequenceEdgeNodeClick
-                  }
-                  onCancelSequenceEdgeTool={
-                    isPresentation ? undefined : state.cancelSequenceEdgeTool
-                  }
-                  extraNodeTypes={host.nodeTypes}
-                  extraEdgeTypes={host.edgeTypes}
-                  readOnly={isPresentation}
-                  webMcp={!isPresentation && webMcp}
-                  chatGptDeepLinkResolver={chatGptDeepLinkResolver}
-                  minZoom={minZoom}
-                  registerViewportCenter={registerViewportCenter}
-                  activeStoryTargets={isPresentation ? activePresentationTargets : undefined}
-                />
-              </AnimationStateContext.Provider>
-            </EdgeRoutingCallbacksContext.Provider>
-          </NodeCallbacksContext.Provider>
+                <AnimationStateContext.Provider
+                  value={isPresentation ? presentationAnimationState : state.animationState}
+                >
+                  <DiagramCanvas
+                    nodes={state.flowNodes}
+                    edges={isPresentation ? presentationEdges : state.flowEdges}
+                    onNodesChange={state.onNodesChange}
+                    onEdgesChange={state.onEdgesChange}
+                    onConnect={state.onConnect}
+                    setSelectedNodeId={state.setSelectedNodeId}
+                    setSelectedEdgeId={state.setSelectedEdgeId}
+                    onBlankCanvasClick={isPresentation ? undefined : dismissCanvasOverlays}
+                    onRequestContextMenu={isPresentation ? undefined : setStepMenu}
+                    onOpenSteps={isPresentation ? undefined : openSteps}
+                    onAddNode={isPresentation ? undefined : state.handleAddNode}
+                    onNodeDragStop={isPresentation ? undefined : state.handleNodeDragStop}
+                    activeSequenceEdgeTool={isPresentation ? null : state.activeSequenceEdgeTool}
+                    onSequenceEdgeNodeClick={
+                      isPresentation ? undefined : state.handleSequenceEdgeNodeClick
+                    }
+                    onCancelSequenceEdgeTool={
+                      isPresentation ? undefined : state.cancelSequenceEdgeTool
+                    }
+                    extraNodeTypes={host.nodeTypes}
+                    extraEdgeTypes={host.edgeTypes}
+                    readOnly={isPresentation}
+                    webMcp={!isPresentation && webMcp}
+                    chatGptDeepLinkResolver={chatGptDeepLinkResolver}
+                    minZoom={minZoom}
+                    registerViewportCenter={registerViewportCenter}
+                    activeStoryTargets={isPresentation ? activePresentationTargets : undefined}
+                  />
+                </AnimationStateContext.Provider>
+              </EdgeRoutingCallbacksContext.Provider>
+            </NodeCallbacksContext.Provider>
+          </ImageUploaderContext.Provider>
         </div>
 
         {/* Host overlay rendered inside the canvas region, above the story dock. */}

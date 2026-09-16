@@ -34,7 +34,7 @@ import { UmlClassNode } from "./shapes/UmlClassNode";
 import { EntityNode } from "./shapes/EntityNode";
 import { ContainerNode } from "./shapes/ContainerNode";
 import { SwimlaneNode } from "./shapes/SwimlaneNode";
-import { useNodeCallbacks, useAnimationState } from "../contexts";
+import { dataUrlToFile, useAnimationState, useImageUploader, useNodeCallbacks } from "../contexts";
 import { useReducedMotion } from "../hooks/useReducedMotion";
 import { isCloudIconType, getCloudIcon } from "./shapes/cloud-icons";
 import { ImageCropDialog } from "./ImageCropDialog";
@@ -147,6 +147,7 @@ const CustomShapeNode = ({
   const [isEditing, setIsEditing] = useState(false);
   const [showCropDialog, setShowCropDialog] = useState(false);
   const callbacks = useNodeCallbacks();
+  const uploadImage = useImageUploader();
   const {
     isGlobalAnimating,
     isPreviewingSelected,
@@ -435,23 +436,43 @@ const CustomShapeNode = ({
       const el = nodeRef.current;
       const currentW = el ? el.offsetWidth : 160;
       const newH = Math.round(currentW * (result.cropH / result.cropW));
-      callbacks?.onStyleChange(
-        id,
-        {
-          _originalImageUrl: origUrl,
-          imageUrl: result.croppedImageUrl,
-          cropX: result.cropX,
-          cropY: result.cropY,
-          cropW: result.cropW,
-          cropH: result.cropH,
-          _naturalW: result._naturalW,
-          _naturalH: result._naturalH,
-        },
-        { width: currentW, height: newH },
-      );
-      setShowCropDialog(false);
+      const applyCrop = (croppedUrl: string) => {
+        callbacks?.onStyleChange(
+          id,
+          {
+            _originalImageUrl: origUrl,
+            imageUrl: croppedUrl,
+            cropX: result.cropX,
+            cropY: result.cropY,
+            cropW: result.cropW,
+            cropH: result.cropH,
+            _naturalW: result._naturalW,
+            _naturalH: result._naturalH,
+          },
+          { width: currentW, height: newH },
+        );
+        setShowCropDialog(false);
+      };
+
+      // The crop is produced as a PNG data URL. Store it the same way the
+      // original was stored, or a host that keeps images out of the document
+      // would get the whole cropped bitmap inlined right back into it.
+      if (!uploadImage) {
+        applyCrop(result.croppedImageUrl);
+        return;
+      }
+      void (async () => {
+        try {
+          const file = await dataUrlToFile(result.croppedImageUrl, "crop.png");
+          applyCrop(await uploadImage(file));
+        } catch {
+          // Keep the crop rather than losing the user's work; the save may fail
+          // on size, which the host reports through its own save error.
+          applyCrop(result.croppedImageUrl);
+        }
+      })();
     },
-    [callbacks, id, originalImageUrl, data.imageUrl],
+    [callbacks, id, originalImageUrl, data.imageUrl, uploadImage],
   );
 
   // ── Label element ──

@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SidebarRight } from "./SidebarRight";
+import { dataUrlToFile } from "../contexts";
 
 afterEach(cleanup);
 
@@ -93,5 +94,19 @@ describe("picking an image file", () => {
 
     release("https://files.example.com/img/abc.png");
     await waitFor(() => expect(screen.queryByText("Uploading…")).toBeNull());
+  });
+});
+
+describe("dataUrlToFile", () => {
+  it("converts a canvas data URL into an uploadable File", async () => {
+    // 1x1 transparent PNG.
+    const dataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8AAAwAB/AF/qkAAAAAASUVORK5CYII=";
+    const file = await dataUrlToFile(dataUrl, "crop.png");
+
+    expect(file).toBeInstanceOf(File);
+    expect(file.name).toBe("crop.png");
+    expect(file.type).toBe("image/png");
+    expect(file.size).toBeGreaterThan(0);
   });
 });
