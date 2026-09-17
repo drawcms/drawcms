@@ -2,7 +2,12 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
-import { DEFAULT_MAX_ZOOM, DEFAULT_MIN_ZOOM, DiagramCanvas } from "./DiagramCanvas";
+import {
+  DEFAULT_FIT_MAX_ZOOM,
+  DEFAULT_MAX_ZOOM,
+  DEFAULT_MIN_ZOOM,
+  DiagramCanvas,
+} from "./DiagramCanvas";
 import { installReactFlowJsdomShims } from "../test/react-flow-jsdom";
 
 beforeAll(() => {
@@ -259,6 +264,16 @@ describe("canvas zoom range and viewport reporting", () => {
     // Panning is unbounded (no `translateExtent`), so the floor is what decides
     // how much of a large diagram can be on screen at once.
     expect(DEFAULT_MAX_ZOOM / DEFAULT_MIN_ZOOM).toBeGreaterThanOrEqual(100);
+  });
+
+  it("caps fit zoom well below the manual max so a single element is not blown up", () => {
+    // Fitting must never zoom past DEFAULT_FIT_MAX_ZOOM, so reopening a diagram
+    // with one small element centers it at a natural size instead of filling
+    // the viewport. The cap stays within the manual zoom range and below the
+    // manual maximum used for close work.
+    expect(DEFAULT_FIT_MAX_ZOOM).toBeLessThanOrEqual(1);
+    expect(DEFAULT_FIT_MAX_ZOOM).toBeGreaterThanOrEqual(DEFAULT_MIN_ZOOM);
+    expect(DEFAULT_FIT_MAX_ZOOM).toBeLessThan(DEFAULT_MAX_ZOOM);
   });
 
   it("hands the host a viewport-centre getter and withdraws it on unmount", async () => {

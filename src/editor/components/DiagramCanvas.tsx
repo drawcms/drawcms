@@ -838,6 +838,17 @@ interface DiagramCanvasProps {
 export const DEFAULT_MIN_ZOOM = 0.05;
 export const DEFAULT_MAX_ZOOM = 8;
 
+/**
+ * Upper zoom cap used only when *fitting* the view (initial load, resize, and
+ * the "Fit all elements" control) — deliberately far below DEFAULT_MAX_ZOOM,
+ * which governs manual zoom for close work. Without this, fitView zooms in
+ * until the content fills the viewport, so reopening a diagram with a single
+ * small element blew it up to fill the whole screen. Capping the fit at 1
+ * (100%) keeps a lone or tiny diagram at natural size, centered, instead of
+ * over-zoomed; larger diagrams still zoom out to fit as before.
+ */
+export const DEFAULT_FIT_MAX_ZOOM = 1;
+
 function CanvasControls({
   onOpenSteps,
   areaSelect,
@@ -939,6 +950,9 @@ function CanvasControls({
               // would silently clip any diagram wider than about twice the
               // viewport from a control named "fit all elements".
               minZoom,
+              // Cap zoom-in so fitting a single/small diagram centers it at a
+              // sane size instead of blowing it up to fill the viewport.
+              maxZoom: DEFAULT_FIT_MAX_ZOOM,
               duration: reducedMotion ? 0 : 300,
             })
           }
@@ -1014,7 +1028,14 @@ export function DiagramCanvas({
   const reactFlowRef = useRef<ReactFlowInstance<any, any> | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const fitViewOptions = useMemo(
-    () => (readOnly ? { padding: 0.2, minZoom } : undefined),
+    // Always cap how far fitting zooms in (DEFAULT_FIT_MAX_ZOOM), for both the
+    // editor and read-only viewers, so a single/small diagram opens at a sane
+    // size instead of filling the viewport. Read-only viewers also pin the
+    // padding + minZoom they fit thumbnails with.
+    () =>
+      readOnly
+        ? { padding: 0.2, minZoom, maxZoom: DEFAULT_FIT_MAX_ZOOM }
+        : { maxZoom: DEFAULT_FIT_MAX_ZOOM },
     [minZoom, readOnly],
   );
 
