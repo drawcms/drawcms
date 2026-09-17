@@ -648,7 +648,15 @@ export function useEditorState(options?: UseEditorStateOptions) {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      const meaningful = changes.some((c) => c.type !== "select");
+      // React Flow reports its own measurement bookkeeping as `dimensions`
+      // changes: every node is measured when it mounts (which is how a freshly
+      // added text element gets its size) and re-measured whenever its DOM box
+      // changes. Those are consequences of an edit, not edits themselves — the
+      // edit already pushed history — so recording them would make the newest
+      // undo entry a post-edit snapshot and undo a no-op. Auto-resize feedback
+      // loops (a size write re-renders the node, which re-measures it) come
+      // through here too and would otherwise keep spinning.
+      const meaningful = changes.some((c) => c.type !== "select" && c.type !== "dimensions");
       if (meaningful) pushHistory();
       setNodes((nds) => applyNodeChanges(changes, nds) as AppNode[]);
     },

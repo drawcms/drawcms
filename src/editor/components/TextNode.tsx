@@ -5,6 +5,7 @@ import { Handle, NodeResizer, Position } from "@xyflow/react";
 import { useAnimationState, useNodeCallbacks } from "../contexts";
 import { STORY_ACTIVE_TEXT } from "../story/highlight";
 import type { AppNodeData } from "../types";
+import { matches } from "../shortcuts";
 
 export const TEXT_FONT_FAMILIES = {
   sans: '"Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -51,6 +52,9 @@ export function TextNode({
   const [isEditing, setIsEditing] = useState(data.textEditOnMount === true);
   const startedInEditModeRef = useRef(data.textEditOnMount === true);
   const [draft, setDraft] = useState(String(data.label ?? ""));
+  // Whether any keystroke has landed in this editor session. Only then does the
+  // browser's native textarea undo queue have an entry for this element.
+  const typedInSessionRef = useRef(false);
 
   const fontSize = safeNumber(data.fontSize, 20);
   const lineHeight = Math.max(1, Math.min(2, safeNumber(data.lineHeight, 1.25)));
@@ -172,6 +176,7 @@ export function TextNode({
   const startEditing = useCallback(() => {
     initialValueRef.current = String(data.label ?? "");
     editFinishedRef.current = false;
+    typedInSessionRef.current = false;
     setDraft(String(data.label ?? ""));
     setIsEditing(true);
   }, [data.label]);
@@ -238,6 +243,7 @@ export function TextNode({
             style={{ ...sharedStyle, color: textColor, overflowWrap: "anywhere" }}
             onChange={(event) => {
               const nextValue = event.target.value;
+              typedInSessionRef.current = true;
               setDraft(nextValue);
               callbacks?.onLabelChange(id, nextValue);
             }}
@@ -252,6 +258,31 @@ export function TextNode({
               } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                 event.preventDefault();
                 finishEditing();
+              } else if (matches(event.nativeEvent, "undo") && !typedInSessionRef.current) {
+                // The editor keeps total history; the textarea's native undo
+                // queue only covers what was typed here. This session has not
+                // typed anything — the usual case for a just-created blank
+                // element — so there is nothing native to undo, and the Mod+Z
+                // a person presses clearly means "undo that creation". Release
+                // the edit and let the editor act.
+                //
+                // The window handler that performs undo also skips typing
+                // targets, and the textarea is still focused here (the state
+                // that closes it is asynchronous), so re-dispatch on `document`
+                // — `isTypingTarget` reads `event.target`, and a document
+                // dispatch has no element target. Once typing has happened the
+                // native undo takes the keystroke and this branch stands down.
+                event.preventDefault();
+                finishEditing();
+                document.dispatchEvent(
+                  new KeyboardEvent("keydown", {
+                    key: event.key,
+                    metaKey: event.metaKey,
+                    ctrlKey: event.ctrlKey,
+                    shiftKey: event.shiftKey,
+                    bubbles: true,
+                  }),
+                );
               } else if (event.key === "Tab") {
                 event.preventDefault();
                 const target = event.currentTarget;

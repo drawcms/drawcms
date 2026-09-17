@@ -689,6 +689,49 @@ describe("keyboard shortcuts", () => {
     expect(result.current.nodes[0].data.fontSize).toBe(14);
     input.remove();
   });
+
+  it("undoes a double-click text addition despite React Flow's dimension bookkeeping", async () => {
+    // Adding a node lands a `dimensions` change as soon as React Flow measures
+    // it. Those measurement pushes are consequences of the addition, so undo
+    // must remove the element instead of re-applying a post-add snapshot.
+    const { result } = renderHook(() => useEditorState({ initialNodes: [], initialEdges: [] }));
+
+    act(() => result.current.handleAddNode("text", "", { x: 400, y: 300 }));
+    expect(result.current.nodes).toHaveLength(1);
+    const id = result.current.nodes[0].id;
+
+    // React Flow measures the fresh DOM node and reports its size.
+    act(() =>
+      result.current.onNodesChange([
+        { id, type: "dimensions", dimensions: { width: 96, height: 31 } },
+      ]),
+    );
+    act(() => result.current.setSelectedNodeId(id));
+    await act(() => press("z", { metaKey: true }));
+
+    expect(result.current.nodes).toHaveLength(0);
+    // And redo brings the element straight back.
+    await act(() => press("z", { metaKey: true, shiftKey: true }));
+    expect(result.current.nodes).toHaveLength(1);
+    expect(result.current.nodes[0].id).toBe(id);
+  });
+
+  it("keeps position and remove changes undoable", async () => {
+    const { result } = renderHook(() =>
+      useEditorState({
+        initialNodes: [selected({ id: "a", position: { x: 10, y: 10 } })],
+        initialEdges: [],
+      }),
+    );
+
+    act(() =>
+      result.current.onNodesChange([
+        { id: "a", type: "position", position: { x: 60, y: 60 }, dragging: false },
+      ]),
+    );
+    await act(() => press("z", { metaKey: true }));
+    expect(result.current.nodes[0].position).toEqual({ x: 10, y: 10 });
+  });
 });
 
 describe("placing elements added without a position", () => {
