@@ -70,6 +70,10 @@ import {
 import { addStoryStep, updateStoryStep } from "./story/ops";
 import { resolveStoryTargets } from "./story/active-flow";
 import { dismissOnboarding, isOnboardingDismissed, reopenOnboarding } from "./onboarding/state";
+import {
+  loadElementPanelPreferences,
+  saveElementPanelPreferences,
+} from "./lib/element-panel-preferences";
 import { useReducedMotion } from "./hooks/useReducedMotion";
 import { useDrawCMSWebMCP } from "./webmcp/use-webmcp";
 import type { DrawCMSWebMCPAdapter } from "./webmcp/tools";
@@ -412,6 +416,27 @@ export function DrawCMSEditor({
   const [collapsedElementGroups, setCollapsedElementGroups] = useState<string[]>(
     DEFAULT_COLLAPSED_CATEGORY_IDS,
   );
+  // Element-panel personalization (pinned groups + each group's rail tool) is a
+  // client-only preference. Initialize from the SSR-safe defaults and hydrate
+  // from localStorage after mount to avoid a hydration mismatch, matching the
+  // onboarding-state pattern. `elementPanelHydrated` is state (not a ref) so the
+  // persist effect below skips every render until hydration has actually been
+  // committed — otherwise its first run would clobber the saved layout with the
+  // initial defaults before the loaded values render.
+  const [elementPanelHydrated, setElementPanelHydrated] = useState(false);
+  useEffect(() => {
+    const stored = loadElementPanelPreferences();
+    setCollapsedElementGroups(stored.visibleCategoryIds);
+    setCollapsedElementTools(stored.selectedShapeIds);
+    setElementPanelHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!elementPanelHydrated) return;
+    saveElementPanelPreferences({
+      visibleCategoryIds: collapsedElementGroups,
+      selectedShapeIds: collapsedElementTools,
+    });
+  }, [elementPanelHydrated, collapsedElementGroups, collapsedElementTools]);
   // DM-032: honors prefers-reduced-motion — samples never autoplay when the
   // user opts out of motion; playback stays available via explicit controls.
   const reducedMotion = useReducedMotion();
@@ -962,17 +987,18 @@ export function DrawCMSEditor({
     title: string;
     description?: string;
     durationMs?: number;
+    targets: StoryTarget[];
   }) => {
     if (!stepDialog) return;
     const next =
       stepDialog.mode === "edit" && stepDialog.step
         ? updateStoryStep(storyState, stepDialog.sceneId, stepDialog.step.id, {
             ...input,
-            targets: stepDialog.targets,
+            targets: input.targets,
           })
         : addStoryStep(storyState, stepDialog.sceneId, {
             ...input,
-            targets: stepDialog.targets,
+            targets: input.targets,
           });
     handleStoryChange(next);
     setStepsPanelOpen(true);

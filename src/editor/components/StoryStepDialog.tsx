@@ -28,7 +28,12 @@ interface StoryStepDialogProps {
   knownNodes: { id: string; label: string }[];
   knownEdges: { id: string; label: string }[];
   onOpenChange: (open: boolean) => void;
-  onSubmit: (input: { title: string; description?: string; durationMs?: number }) => void;
+  onSubmit: (input: {
+    title: string;
+    description?: string;
+    durationMs?: number;
+    targets: StoryTarget[];
+  }) => void;
 }
 
 export function StoryStepDialog({
@@ -48,12 +53,33 @@ export function StoryStepDialog({
   const [durationSeconds, setDurationSeconds] = useState(
     (initialDurationMs ?? STORY_STEP_DEFAULT_DURATION_MS) / 1000,
   );
-
-  const targetNames = targets.map((target) =>
-    target.targetKind === "node"
-      ? (knownNodes.find((node) => node.id === target.targetId)?.label ?? "Element")
-      : (knownEdges.find((edge) => edge.id === target.targetId)?.label ?? "Connector"),
+  // Which elements this step highlights, editable here so a person can fix a
+  // step the agent (or a quick selection) got wrong — e.g. narrow a sequence
+  // step from three participants down to the single message it should show.
+  // Keyed as `${kind}:${id}` for set membership.
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
+    () => new Set(targets.map((t) => `${t.targetKind}:${t.targetId}`)),
   );
+
+  const toggleTarget = (kind: "node" | "edge", id: string) => {
+    const key = `${kind}:${id}`;
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectedTargets: StoryTarget[] = [
+    ...knownNodes
+      .filter((n) => selectedKeys.has(`node:${n.id}`))
+      .map((n) => ({ targetId: n.id, targetKind: "node" as const })),
+    ...knownEdges
+      .filter((e) => selectedKeys.has(`edge:${e.id}`))
+      .map((e) => ({ targetId: e.id, targetKind: "edge" as const })),
+  ];
+  const selectedCount = selectedTargets.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -71,7 +97,7 @@ export function StoryStepDialog({
           onSubmit={(event) => {
             event.preventDefault();
             const nextTitle = title.trim();
-            if (!nextTitle || targets.length === 0) return;
+            if (!nextTitle || selectedCount === 0) return;
             const clampedDurationMs = Math.round(
               Math.min(
                 STORY_STEP_MAX_DURATION_MS,
@@ -84,19 +110,55 @@ export function StoryStepDialog({
               ...(clampedDurationMs !== STORY_STEP_DEFAULT_DURATION_MS
                 ? { durationMs: clampedDurationMs }
                 : {}),
+              targets: selectedTargets,
             });
             onOpenChange(false);
           }}
         >
-          <div className="rounded-lg border border-border bg-muted p-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+          <fieldset className="space-y-1.5">
+            <legend className="flex items-center gap-2 text-sm font-medium text-foreground">
               <Layers3 size={15} className="text-primary" aria-hidden="true" />
-              {targets.length} {targets.length === 1 ? "item" : "items"} in this step
-            </div>
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-              {targetNames.join(", ")}
+              Items in this step
+              <span className="font-normal text-muted-foreground">({selectedCount} selected)</span>
+            </legend>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Choose the elements this step highlights. For a sequence walkthrough, select the one
+              message the step is about.
             </p>
-          </div>
+            <div className="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-card p-1">
+              {knownNodes.length + knownEdges.length === 0 ? (
+                <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                  This diagram has no elements yet.
+                </p>
+              ) : (
+                <>
+                  {knownNodes.map((node) => (
+                    <TargetRow
+                      key={`node:${node.id}`}
+                      label={node.label}
+                      kind="Element"
+                      checked={selectedKeys.has(`node:${node.id}`)}
+                      onToggle={() => toggleTarget("node", node.id)}
+                    />
+                  ))}
+                  {knownEdges.map((edge) => (
+                    <TargetRow
+                      key={`edge:${edge.id}`}
+                      label={edge.label}
+                      kind="Connector"
+                      checked={selectedKeys.has(`edge:${edge.id}`)}
+                      onToggle={() => toggleTarget("edge", edge.id)}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+            {selectedCount === 0 && (
+              <p className="text-xs font-medium text-red-600 dark:text-red-400" role="alert">
+                Select at least one element for this step.
+              </p>
+            )}
+          </fieldset>
 
           <label className="block space-y-1.5" htmlFor="story-step-title">
             <span className="text-sm font-medium text-foreground">Title</span>
@@ -148,12 +210,40 @@ export function StoryStepDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!title.trim() || targets.length === 0}>
+            <Button type="submit" disabled={!title.trim() || selectedCount === 0}>
               {mode === "create" ? "Add step" : "Save changes"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One selectable element in the step's item list. */
+function TargetRow({
+  label,
+  kind,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  kind: "Element" | "Connector";
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-muted">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="size-4 shrink-0 rounded border-border text-primary focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        {kind}
+      </span>
+    </label>
   );
 }
