@@ -99,4 +99,75 @@ describe("StoryStepDialog editable targets", () => {
     await user.click(save);
     expect(onSubmit).not.toHaveBeenCalled();
   });
+
+  it("preserves hidden selections when searching and saves the full selected set", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog();
+
+    await user.type(screen.getByRole("searchbox", { name: "Search items" }), "CHECKOUT");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    await user.click(screen.getByRole("checkbox", { name: /Click checkout/ }));
+    expect(screen.getByText("4 selected")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(onSubmit.mock.calls[0][0].targets).toHaveLength(4);
+  });
+
+  it("lets users review selected items and recover after removing the last one", async () => {
+    const user = userEvent.setup();
+    renderDialog({ targets: [{ targetId: "user", targetKind: "node" }] });
+
+    await user.click(screen.getByRole("button", { name: "Selected" }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    await user.click(screen.getByRole("checkbox", { name: /User/ }));
+    expect(screen.getByText("No items selected")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Show all items" }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+  });
+
+  it("recovers from an empty search without changing the selected items", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.type(screen.getByRole("searchbox", { name: "Search items" }), "missing item");
+    expect(screen.getByText("No matching items")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Show all items" }));
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    expect(screen.getByText("3 selected")).toBeTruthy();
+  });
+
+  it("saves duration presets and preserves the default duration representation", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderDialog();
+    await user.click(screen.getByRole("button", { name: "8s" }));
+    expect((screen.getByRole("slider", { name: "Hold duration" }) as HTMLInputElement).value).toBe(
+      "8",
+    );
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(onSubmit.mock.calls[0][0].durationMs).toBe(8000);
+
+    await user.click(screen.getByRole("button", { name: /4s · Default/ }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(onSubmit.mock.calls[1][0].durationMs).toBeUndefined();
+  });
+
+  it("explains an empty diagram and prevents creating a step without targets", () => {
+    renderDialog({ mode: "create", targets: [], knownNodes: [], knownEdges: [] });
+    expect(screen.getByText("No items yet")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Add step" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it("dismisses with Escape without submitting edits", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    const { onSubmit } = renderDialog({ onOpenChange });
+    await user.keyboard("{Escape}");
+    expect(onOpenChange).toHaveBeenCalledWith(
+      false,
+      expect.objectContaining({ reason: "escape-key" }),
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });
