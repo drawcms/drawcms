@@ -93,7 +93,7 @@ export function StoryStepDialog({
         </DialogHeader>
 
         <form
-          className="space-y-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             const nextTitle = title.trim();
@@ -115,96 +115,100 @@ export function StoryStepDialog({
             onOpenChange(false);
           }}
         >
-          <fieldset className="space-y-1.5">
-            <legend className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <Layers3 size={15} className="text-primary" aria-hidden="true" />
-              Items in this step
-              <span className="font-normal text-muted-foreground">({selectedCount} selected)</span>
-            </legend>
-            <p className="text-xs leading-5 text-muted-foreground">
-              Choose the elements this step highlights. For a sequence walkthrough, select the one
-              message the step is about.
-            </p>
-            <div className="max-h-44 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-card p-1">
-              {knownNodes.length + knownEdges.length === 0 ? (
-                <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                  This diagram has no elements yet.
-                </p>
-              ) : (
-                <>
-                  {knownNodes.map((node) => (
-                    <TargetRow
-                      key={`node:${node.id}`}
-                      label={node.label}
-                      kind="Element"
-                      checked={selectedKeys.has(`node:${node.id}`)}
-                      onToggle={() => toggleTarget("node", node.id)}
-                    />
-                  ))}
-                  {knownEdges.map((edge) => (
-                    <TargetRow
-                      key={`edge:${edge.id}`}
-                      label={edge.label}
-                      kind="Connector"
-                      checked={selectedKeys.has(`edge:${edge.id}`)}
-                      onToggle={() => toggleTarget("edge", edge.id)}
-                    />
-                  ))}
-                </>
-              )}
-            </div>
-            {selectedCount === 0 && (
-              <p className="text-xs font-medium text-red-600 dark:text-red-400" role="alert">
-                Select at least one element for this step.
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            <fieldset className="space-y-1.5">
+              <legend className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Layers3 size={15} className="text-primary" aria-hidden="true" />
+                Items in this step
+                <span className="font-normal text-muted-foreground">
+                  ({selectedCount} selected)
+                </span>
+              </legend>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Choose the elements this step highlights. For a sequence walkthrough, select the one
+                message the step is about.
               </p>
-            )}
-          </fieldset>
+              <div className="space-y-0.5 rounded-lg border border-border bg-card p-1">
+                {knownNodes.length + knownEdges.length === 0 ? (
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                    This diagram has no elements yet.
+                  </p>
+                ) : (
+                  <>
+                    {knownNodes.map((node) => (
+                      <TargetRow
+                        key={`node:${node.id}`}
+                        label={node.label}
+                        kind="Element"
+                        checked={selectedKeys.has(`node:${node.id}`)}
+                        onToggle={() => toggleTarget("node", node.id)}
+                      />
+                    ))}
+                    {knownEdges.map((edge) => (
+                      <TargetRow
+                        key={`edge:${edge.id}`}
+                        label={edge.label}
+                        kind="Connector"
+                        checked={selectedKeys.has(`edge:${edge.id}`)}
+                        onToggle={() => toggleTarget("edge", edge.id)}
+                      />
+                    ))}
+                  </>
+                )}
+              </div>
+              {selectedCount === 0 && (
+                <p className="text-xs font-medium text-red-600 dark:text-red-400" role="alert">
+                  Select at least one element for this step.
+                </p>
+              )}
+            </fieldset>
 
-          <label className="block space-y-1.5" htmlFor="story-step-title">
-            <span className="text-sm font-medium text-foreground">Title</span>
-            <input
-              id="story-step-title"
-              autoFocus
-              autoComplete="off"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={120}
-              placeholder="e.g. Request reaches the gateway"
-              className="min-h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none transition-colors hover:border-border focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </label>
+            <label className="block space-y-1.5" htmlFor="story-step-title">
+              <span className="text-sm font-medium text-foreground">Title</span>
+              <input
+                id="story-step-title"
+                autoFocus
+                autoComplete="off"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                maxLength={120}
+                placeholder="e.g. Request reaches the gateway"
+                className="min-h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none transition-colors hover:border-border focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </label>
 
-          <label className="block space-y-1.5" htmlFor="story-step-description">
-            <span className="text-sm font-medium text-foreground">Description</span>
-            <textarea
-              id="story-step-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              maxLength={500}
-              rows={4}
-              placeholder="Explain what happens and why it matters."
-              className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors hover:border-border focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <span className="block text-right text-xs tabular-nums text-muted-foreground">
-              {description.length}/500
-            </span>
-          </label>
+            <label className="block space-y-1.5" htmlFor="story-step-description">
+              <span className="text-sm font-medium text-foreground">Description</span>
+              <textarea
+                id="story-step-description"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                maxLength={500}
+                rows={4}
+                placeholder="Explain what happens and why it matters."
+                className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors hover:border-border focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              <span className="block text-right text-xs tabular-nums text-muted-foreground">
+                {description.length}/500
+              </span>
+            </label>
 
-          <label className="block space-y-1.5" htmlFor="story-step-duration">
-            <span className="text-sm font-medium text-foreground">
-              Hold for {durationSeconds.toFixed(1)}s before advancing
-            </span>
-            <input
-              id="story-step-duration"
-              type="range"
-              min={STORY_STEP_MIN_DURATION_MS / 1000}
-              max={STORY_STEP_MAX_DURATION_MS / 1000}
-              step={0.5}
-              value={durationSeconds}
-              onChange={(event) => setDurationSeconds(Number(event.target.value))}
-              className="w-full"
-            />
-          </label>
+            <label className="block space-y-1.5" htmlFor="story-step-duration">
+              <span className="text-sm font-medium text-foreground">
+                Hold for {durationSeconds.toFixed(1)}s before advancing
+              </span>
+              <input
+                id="story-step-duration"
+                type="range"
+                min={STORY_STEP_MIN_DURATION_MS / 1000}
+                max={STORY_STEP_MAX_DURATION_MS / 1000}
+                step={0.5}
+                value={durationSeconds}
+                onChange={(event) => setDurationSeconds(Number(event.target.value))}
+                className="w-full"
+              />
+            </label>
+          </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

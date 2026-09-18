@@ -40,6 +40,23 @@ function renderDialog(overrides: Partial<Parameters<typeof StoryStepDialog>[0]> 
 }
 
 describe("StoryStepDialog editable targets", () => {
+  it("keeps the dialog within the viewport: capped height, scrollable body, pinned footer", () => {
+    renderDialog();
+    // The dialog panel caps its height and hides overflow so it can never spill
+    // past the viewport the way the pre-fix grid layout did.
+    const panel = document.querySelector('[data-slot="dialog-content"]') as HTMLElement;
+    expect(panel).toBeTruthy();
+    expect(panel.className).toMatch(/max-h-\[calc\(100dvh-2rem\)\]/);
+    expect(panel.className).toMatch(/overflow-hidden/);
+    // The body between header and footer is the scroll region.
+    const scrollBody = panel.querySelector(".overflow-y-auto") as HTMLElement;
+    expect(scrollBody).toBeTruthy();
+    expect(scrollBody.className).toMatch(/min-h-0/);
+    // The footer's buttons live outside that scroll region (pinned).
+    const save = screen.getByRole("button", { name: /Save changes/ });
+    expect(scrollBody.contains(save)).toBe(false);
+  });
+
   it("preselects the step's current targets and reports the count", () => {
     renderDialog();
     expect(screen.getByText(/3 selected/)).toBeTruthy();
