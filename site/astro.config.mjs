@@ -29,7 +29,7 @@ const SIDEBAR_GROUPS = [
   },
   {
     label: "Extend",
-    items: ["plugin-api", "webmcp"],
+    items: ["plugin-api", "webmcp", "agent-skill"],
   },
   {
     label: "Reference",
@@ -63,6 +63,7 @@ const SIDEBAR_LABELS = {
   accessibility: "Accessibility",
   performance: "Performance",
   webmcp: "WebMCP",
+  "agent-skill": "Agent skill (CLI)",
   contributing: "Contributing",
 };
 

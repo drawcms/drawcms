@@ -4,8 +4,9 @@ title: "Quick start — five minutes to an animated diagram"
 
 ## Make a diagram
 
-Run the app locally first (see [Run it locally](#run-it-locally)). No account is
-needed and the open-source app saves the active document in this browser.
+Open the app — the hosted editor at [drawcms.com](https://drawcms.com), or your
+own [self-hosted](self-hosting.md) instance. No account is needed for the
+open-source app, which saves the active document in this browser.
 
 1. Open the app. First launch offers four starting points — pick
    **See motion in action**.
@@ -94,18 +95,24 @@ the GIF beside the README, and link it to the public share page instead:
 
 The guide can be reopened anytime with `File → Show guide`.
 
-## Run it locally
+## Generate a diagram from a repository
+
+Prefer to start from code? The [DrawCMS agent skill](agent-skill.md) turns a
+repository into a validated diagram from the command line. Install the skill
+into your coding agent (Claude Code, Codex, OpenCode, …) with one command:
 
 ```bash
-git clone https://github.com/drawcms/drawcms.git
-cd drawcms
-npm install
-npm run dev
+npx skills add drawcms/drawcms-skill -g
 ```
 
-Open <http://localhost:3002>. The editor is at `/`; `/editor` redirects there
-for compatibility with older links. Documents autosave to the browser;
-nothing is sent to a DrawCMS server.
+That installs the skill instructions; the `drawcms` CLI itself needs a one-time
+local build (it bundles the DrawCMS engine) — see the
+[agent skill guide](agent-skill.md#install). Then ask your agent to diagram the
+repo — for example "diagram this repo's architecture in DrawCMS and push it", or
+"build a sequence diagram of the checkout flow for my self-hosted editor". The
+skill authors the diagram, the `drawcms` CLI validates it against the real
+engine, and it either syncs to DrawCMS Cloud or writes a document you load into a
+self-hosted editor.
 
 ## Embed the editor in your app
 
@@ -120,5 +127,6 @@ embed it. See [self-hosting](self-hosting.md) and the
 > The legacy npm package `@drawcms/editor@0.12.4` is frozen and no longer
 > receives updates; the current editor is developed in this repository.
 
-Next: [plugin API](plugin-api.md) · [self-hosting](self-hosting.md) ·
-[document format](document-format.md) · [importer limitations](importer-limitations.md)
+Next: [agent skill](agent-skill.md) · [plugin API](plugin-api.md) ·
+[self-hosting](self-hosting.md) · [document format](document-format.md) ·
+[importer limitations](importer-limitations.md)

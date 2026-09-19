@@ -1,24 +1,35 @@
 ---
 title: "DrawCMS Cloud"
-description: "What the hosted product adds, how it stores diagrams, and how maintainers run it locally."
+description: "What the hosted version adds, how your diagrams are stored, and how it differs from self-hosting."
 ---
 
-DrawCMS Cloud is the hosted application at
-[drawcms.com](https://drawcms.com). It uses the same editor and `.drawcms`
-document format as the open-source app, then adds accounts and server-backed
-features.
+DrawCMS Cloud is the hosted version of DrawCMS at
+[drawcms.com](https://drawcms.com). It runs the same editor and reads the same
+`.drawcms` document format as the open-source app. The difference is not the
+editor, it is what surrounds it: an account, diagram storage, sharing, billed
+exports, and updates you do not have to manage yourself.
 
-| Open-source app                          | DrawCMS Cloud                                          |
-| ---------------------------------------- | ------------------------------------------------------ |
-| Active document saved in browser storage | Diagrams saved to an account                           |
-| Manual `.drawcms` file backup            | Autosave, revisions, and recovery after save conflicts |
-| PNG and GIF export                       | Plan-controlled SVG and MP4 export                     |
-| No public links                          | Revocable view links and iframe embeds                 |
-| No account or backend                    | Better Auth sessions and server-enforced access checks |
+## Cloud vs self-hosted
 
-Use the [self-hosting guide](self-hosting.md) when you need the open-source,
-local-first editor. DrawCMS Cloud is a separate proprietary application; the
-Cloud source repository is not part of the AGPL distribution.
+|                            | DrawCMS Cloud                             | Self-hosted                                |
+| -------------------------- | ----------------------------------------- | ------------------------------------------ |
+| Accounts                   | Sign in, owned diagrams                   | No account, browser-local storage          |
+| Diagram storage            | Saved to your account with autosave       | Active document kept in browser storage    |
+| Backup and recovery        | Autosave, revisions, conflict recovery    | Manual `.drawcms` file save/download       |
+| Sharing                    | Revocable view links and iframe embeds    | None; share the file or a screen recording |
+| Exports                    | PNG, GIF, SVG, and MP4 within plan limits | PNG and GIF, generated locally             |
+| Team access                | Personal workspaces (see constraints)     | Not applicable                             |
+| Billing                    | Subscription with invoices                | Not applicable                             |
+| Updates                    | Continuous, managed by DrawCMS            | You upgrade when you choose                |
+| Data location              | Managed by DrawCMS                        | Your own infrastructure                    |
+| Editor and document format | Same as self-hosted                       | Same as Cloud                              |
+
+For the open-source, local-first editor, use the
+[self-hosting guide](self-hosting.md).
+
+To generate and sync diagrams from a code repository on the command line, see
+the [agent skill](agent-skill.md) — it pushes to Cloud with a git-like flow, or
+builds for a self-hosted editor.
 
 ## Sharing and embeds
 
@@ -35,101 +46,47 @@ GitHub does not render iframes in README files. Export a GIF, commit it to the
 repository, and link that image to the Cloud share URL instead. The
 [quick start](quick-start.md#embed-a-cloud-presentation) has both snippets.
 
-## Storage and request path
+## Exports
 
-The production service runs as a Next.js application on Cloudflare Workers:
+Self-hosted DrawCMS exports PNG and GIF entirely in your browser. Cloud adds
+plan-controlled SVG and MP4 export. MP4 encoding also happens in your browser
+through WebCodecs, so a browser without an H.264 encoder falls back to GIF
+rather than moving the work to a server. See
+[browser support](browser-support.md) for the capability matrix.
 
-- D1 stores users, sessions, diagram metadata, revisions, shares, billing
-  records, render jobs, and rate-limit counters.
-- R2 stores versioned diagram payloads and completed MP4 files.
-- KV stores the OpenNext incremental cache.
-- Better Auth handles password and optional Google or GitHub sign-in.
-- Creem handles checkout and subscription events. The webhook, not the
-  browser, changes an account's plan.
+## Accounts and sessions
 
-D1 does not provide row-level security. Every server path that reads or writes
-tenant data must call the shared team or diagram authorization helper. Input
-validation, entitlement checks, and rate limits also run on the server.
-
-MP4 encoding happens in the browser through WebCodecs. Cloud checks the plan
-and render limits, creates a render record, and provides a signed R2 upload.
-Cloud does not move encoding to a server when the browser lacks an H.264
-encoder.
+Cloud signs you in through email and password, with optional Google or GitHub
+sign-in. Authentication is managed for you; there is no identity provider to run
+yourself. A hosted account owns its diagrams, and server-side checks decide
+whether a request may read or change a diagram.
 
 ## Current product constraints
 
-- Workspaces are personal. Team membership and invitations exist behind a
-  disabled rollout flag and must not be presented as available features.
-- Share links and embeds are view-only while teams are disabled, even if an
-  older database row says `editor`.
-- Cloud saves use the current versioned document format. Older supported
-  documents migrate when read.
+- Workspaces are personal. Team membership and invitations are not available yet
+  and should not be relied on.
+- Share links and embeds are view-only, even if an older link was created as
+  editable.
+- Cloud reads the current versioned document format; older supported documents
+  migrate when opened.
 - Diagram creation, revisions, renders, and storage are plan-limited. See the
-  current [pricing page](https://drawcms.com/pricing) instead of copying limits
-  into integrations.
+  current [pricing page](https://drawcms.com/pricing) for the limits that apply
+  to your plan rather than copying numbers into integrations.
 
-## Local development for Cloud maintainers
+## Plans, billing, and support
 
-The private Cloud repository has two development modes.
+Cloud is a paid product; there is no free plan. Pricing, what each plan
+includes, and how to upgrade or cancel are on the
+[pricing page](https://drawcms.com/pricing). For billing questions or account
+issues, use the support channel listed on your account or on the pricing page.
 
-For UI and ordinary server work, use the local SQLite driver:
+## Where DrawCMS Cloud starts and stops
 
-```bash
-npm ci
-cp .env.example .env.development.local
-npm run db:init
-npm run dev
-```
+DrawCMS Cloud is a separate proprietary application. It is not part of the
+open-source distribution, and its internal source and operations documentation
+are not published. Everything about **using** the editor — the canvas, the
+element palette, motion, presentation steps, importers, and the `.drawcms`
+format — is identical on Cloud and self-hosted, and is documented in this site.
 
-Open <http://localhost:3000>. Without R2 credentials, diagram payloads remain
-in SQLite and MP4 upload is unavailable.
-
-For deployment parity, use Miniflare with local D1, KV, and R2:
-
-```bash
-npm ci
-cp .dev.vars.example .dev.vars
-npm run db:push
-npm run build:cloudflare
-npm run preview:cloudflare
-```
-
-This also opens on <http://localhost:3000>. Local Cloudflare state is kept
-under `.wrangler/state`. Use `npm run observe:local` while the preview runs to
-inspect recent traces; `npm run observe:local -- --routes` summarizes route
-latency and errors.
-
-Keep Creem test credentials in local files. Production billing values belong
-only in encrypted Worker secrets. `npm run env:check` rejects a production
-build that mixes test and live billing configuration.
-
-## Updating the editor used by Cloud
-
-Cloud consumes an exact packed editor release from `vendor/`; it never imports
-from a sibling checkout. After releasing a new version in the public
-`drawcms` repository, run this from the private Cloud repository:
-
-```bash
-node scripts/sync-editor.mjs --app ../drawcms
-npm run ci
-```
-
-Commit the new `vendor/drawcms-editor-<version>.tgz`, `package.json`, and
-`package-lock.json` together. The archive ships TypeScript source, so Cloud
-compiles it through `transpilePackages`. Do not replace the archive pin with a
-relative source path or a floating npm range.
-
-## Before a Cloud change is ready
-
-Run `npm run ci`. For storage, authentication, billing, or Worker-specific
-changes, also run the Miniflare flow above and verify:
-
-1. signup and login create a session;
-2. a diagram saves, refreshes, and retains presentation steps;
-3. a second account cannot read or change the diagram;
-4. a viewer link opens `/share/<token>` and its embed opens
-   `/embed/<token>` without edit controls;
-5. `/api/health` reports healthy database, storage, and billing checks.
-
-Deployment, backup, retention, incident response, and release procedures live
-in the private Cloud repository under `docs/operations/` and `docs/release/`.
+Ready to try it? Open the hosted editor at
+[drawcms.com](https://drawcms.com).

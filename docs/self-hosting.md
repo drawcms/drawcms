@@ -49,6 +49,14 @@ security headers (CSP, HSTS) in `next.config.ts`:
 The documentation and blog sites in this repository (`site/` and
 `site-blog/`) are optional static deployments of their own — see the README.
 
+## Generate diagrams from a repository
+
+The [DrawCMS agent skill](agent-skill.md) can build diagrams for this
+self-hosted editor from the command line, with no account. An AI agent authors
+the diagram from your code and `drawcms local` validates it and writes a
+loadable document; you open it in the editor by importing the file or pasting a
+one-line `localStorage` snippet. Share links and autosave stay Cloud-only.
+
 ## Verification checklist
 
 After deploying:
