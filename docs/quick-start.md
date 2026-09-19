@@ -105,8 +105,8 @@ into your coding agent (Claude Code, Codex, OpenCode, …) with one command:
 npx skills add drawcms/drawcms-skill -g
 ```
 
-That installs the skill instructions; the `drawcms` CLI itself needs a one-time
-setup that downloads the DrawCMS engine — see the
+That installs the skill files; the diagram engine downloads automatically on
+first use (or run `scripts/fetch-engine.mjs` yourself) — see the
 [agent skill guide](agent-skill.md#install). Then ask your agent to diagram the
 repo — for example "diagram this repo's architecture in DrawCMS and push it", or
 "build a sequence diagram of the checkout flow for my self-hosted editor". The

@@ -26,22 +26,32 @@ npx skills add drawcms/drawcms-skill -g
 ```
 
 The `-g` flag installs it globally for every agent on your machine; drop it to
-install into the current project only. This installs the **skill instructions**
-your agent loads. It does not set up the `drawcms` CLI — the CLI needs the
-DrawCMS engine, a prebuilt bundle it downloads on first setup. Do that once:
+install into the current project only. This installs the **skill files** — the
+instructions your agent loads plus the `drawcms` CLI (`bin/`, `lib/`, scripts).
+
+The one thing left is the diagram engine: a prebuilt bundle that is downloaded
+(not committed), so it is absent right after install. **Your agent fetches it
+automatically** the first time it runs an engine command — SKILL.md tells it to
+run `scripts/fetch-engine.mjs` (Node only, no `npm install`) on an
+`ENGINE_MISSING` error and retry. To do it yourself up front, run that script
+from wherever the skill was installed, e.g.:
 
 ```bash
-git clone https://github.com/drawcms/drawcms-skill.git
-cd drawcms-skill
-npm install
-npm run fetch-engine    # downloads the prebuilt engine (checksum-verified) from the editor release
-npm link                # optional: puts `drawcms` on your PATH
-drawcms doctor          # expect: node OK, engine OK
+node ~/.claude/skills/drawcms/scripts/fetch-engine.mjs   # checksum-verified download
+```
+
+Nothing else is required — no `git clone`, no `npm install`. The CLI runs on
+Node ≥18 alone (the engine bundle carries its own dependencies). If you want the
+short `drawcms` command on your `PATH` instead of
+`node <skill-folder>/bin/drawcms.mjs`, see the skill's README for `npm link`.
+Verify anytime with:
+
+```bash
+node ~/.claude/skills/drawcms/bin/drawcms.mjs doctor   # expect: node OK, engine OK
 ```
 
 `doctor` checks Node (>=18) and that the diagram engine loads. Every command
-supports `--help` and a `--json` machine receipt. (For a manual copy/symlink
-install or per-agent locations, see the skill's own README.)
+supports `--help` and a `--json` machine receipt.
 
 ## Which mode am I in?
 
