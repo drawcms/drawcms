@@ -27,14 +27,14 @@ npx skills add drawcms/drawcms-skill -g
 
 The `-g` flag installs it globally for every agent on your machine; drop it to
 install into the current project only. This installs the **skill instructions**
-your agent loads. It does not build the `drawcms` CLI — the CLI bundles the
-DrawCMS engine, which is generated locally on first setup. Do that once:
+your agent loads. It does not set up the `drawcms` CLI — the CLI needs the
+DrawCMS engine, a prebuilt bundle it downloads on first setup. Do that once:
 
 ```bash
 git clone https://github.com/drawcms/drawcms-skill.git
 cd drawcms-skill
 npm install
-npm run build:engine    # generates the engine from the pinned editor release
+npm run fetch-engine    # downloads the prebuilt engine (checksum-verified) from the editor release
 npm link                # optional: puts `drawcms` on your PATH
 drawcms doctor          # expect: node OK, engine OK
 ```

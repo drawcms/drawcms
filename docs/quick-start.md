@@ -106,7 +106,7 @@ npx skills add drawcms/drawcms-skill -g
 ```
 
 That installs the skill instructions; the `drawcms` CLI itself needs a one-time
-local build (it bundles the DrawCMS engine) — see the
+setup that downloads the DrawCMS engine — see the
 [agent skill guide](agent-skill.md#install). Then ask your agent to diagram the
 repo — for example "diagram this repo's architecture in DrawCMS and push it", or
 "build a sequence diagram of the checkout flow for my self-hosted editor". The
