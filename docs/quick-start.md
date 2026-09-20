@@ -99,7 +99,7 @@ The guide can be reopened anytime with `File → Show guide`.
 
 Prefer to start from code? The [DrawCMS agent skill](agent-skill.md) turns a
 repository into a validated diagram from the command line. Install the skill
-into your coding agent (Claude Code, Codex, OpenCode, …) with one command:
+into your coding agent (Claude Code, Codex, OpenCode, OpenClaw, Hermes, …) with one command:
 
 ```bash
 npx skills add drawcms/drawcms-skill -g

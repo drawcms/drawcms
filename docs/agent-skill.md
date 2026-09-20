@@ -5,7 +5,8 @@ description: "Turn a code repository into maintained DrawCMS diagrams from the c
 
 The DrawCMS **agent skill** is a portable skill folder plus a git-like CLI
 (`drawcms`) that turns a code repository into validated DrawCMS diagrams. An AI
-coding agent (Claude Code, Codex, OpenCode, and similar) reads your repo,
+coding agent (Claude Code, Codex, OpenCode, OpenClaw, Hermes, and similar) reads
+your repo,
 authors typed JSON, and the CLI validates every diagram against the real DrawCMS
 engine before it goes anywhere. The CLI never guesses topology — the agent does
 the judgment, the CLI does the deterministic build and sync.
