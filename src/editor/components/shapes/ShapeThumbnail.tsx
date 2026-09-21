@@ -61,12 +61,19 @@ export function ShapeThumbnail({ type, size = 36 }: ShapeThumbnailProps) {
     }
   }
 
+  // Keep thin bars recognizable in a square palette tile.
+  const compactViewBox =
+    type === "activity-fork"
+      ? "-4 -280 108 660"
+      : type === "activity-fork-v"
+        ? "-280 -4 660 108"
+        : "-4 -4 108 108";
   return (
     <svg
       width={size}
       height={size}
-      viewBox="-4 -4 108 108"
-      preserveAspectRatio="xMidYMid meet"
+      viewBox={compactViewBox}
+      preserveAspectRatio={type.startsWith("activity-fork") ? "none" : "xMidYMid meet"}
       className="pointer-events-none"
     >
       <ShapeBackground type={type} fill="white" stroke="#6b7280" strokeWidth="2.5" />

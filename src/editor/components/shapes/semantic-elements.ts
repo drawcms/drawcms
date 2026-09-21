@@ -1,3 +1,5 @@
+import { DIAGRAM_PRIMITIVE_GROUPS, DIAGRAM_PRIMITIVE_SIZES } from "./diagram-primitives";
+
 export interface SemanticShapeDefinition {
   id: string;
   title: string;
@@ -18,6 +20,7 @@ export interface SemanticShapeCategory {
  * do not depend on a third-party runtime or asset catalogue.
  */
 export const SEMANTIC_ELEMENT_GROUPS: SemanticShapeCategory[] = [
+  ...DIAGRAM_PRIMITIVE_GROUPS,
   {
     id: "sequence",
     title: "Sequence",
@@ -208,6 +211,8 @@ export const SEQUENCE_NODE_TYPES = new Set([
 ]);
 
 export const SEMANTIC_CONTAINER_TYPES = new Set([
+  "deployment-node",
+  "system-boundary",
   "sequence-frame",
   "boundary-region",
   "boundary-security-group",
@@ -218,6 +223,10 @@ export const SEMANTIC_CONTAINER_TYPES = new Set([
 ]);
 
 export const SEMANTIC_TEXT_BELOW_TYPES = new Set([
+  "network-router",
+  "network-switch",
+  "network-server",
+  "timeline-milestone",
   "sequence-activation",
   "sequence-time",
   "sequence-destroy",
@@ -241,7 +250,11 @@ export const SEMANTIC_TEXT_BELOW_TYPES = new Set([
  * Artwork that intentionally fills a non-square visual area. All remaining
  * text-below semantic icons retain their square viewBox to avoid distortion.
  */
-export const SEMANTIC_STRETCH_ARTWORK_TYPES = new Set(["sequence-activation", "sequence-destroy"]);
+export const SEMANTIC_STRETCH_ARTWORK_TYPES = new Set([
+  "sequence-activation",
+  "sequence-destroy",
+  "network-switch",
+]);
 
 export type SemanticLabelPlacement =
   | "center"
@@ -280,6 +293,7 @@ export function getSemanticLabelPlacement(type: string): SemanticLabelPlacement 
  * 160x100 rectangle and distorting its intended visual proportions.
  */
 export const SEMANTIC_NODE_SIZES: Record<string, { width: number; height: number }> = {
+  ...DIAGRAM_PRIMITIVE_SIZES,
   "sequence-actor": { width: 112, height: 240 },
   "sequence-participant": { width: 140, height: 240 },
   "sequence-activation": { width: 90, height: 182 },

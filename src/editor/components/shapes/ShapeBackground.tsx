@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type SVGProps,
 } from "react";
+import { renderDiagramPrimitive } from "./DiagramPrimitiveBackground";
 import { renderSemanticShape } from "./SemanticShapeBackground";
 
 export interface ShapeBackgroundProps {
@@ -51,6 +52,8 @@ export function ShapeBackground({
   const vectorEffect = "non-scaling-stroke" as const;
 
   const artwork = (() => {
+    const primitive = renderDiagramPrimitive({ type, fill, stroke, strokeWidth, aspectRatio });
+    if (primitive !== undefined) return primitive;
     const semanticArtwork = renderSemanticShape({ type, fill, stroke, strokeWidth, aspectRatio });
     if (semanticArtwork !== undefined) return semanticArtwork;
 

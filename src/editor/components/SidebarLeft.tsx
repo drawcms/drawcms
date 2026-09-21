@@ -1,10 +1,27 @@
 "use client";
 
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus, Search } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Search,
+  Shapes,
+  PanelLeftClose,
+  X,
+  MousePointer2,
+} from "lucide-react";
+import { DiagramCollectionPicker } from "./DiagramCollectionPicker";
 import { ShapeThumbnail } from "./shapes/ShapeThumbnail";
-import { AWS_ICONS, GCP_ICONS, AZURE_ICONS, INFRA_ICONS } from "./shapes/cloud-icons";
-import { SEMANTIC_ELEMENT_GROUPS } from "./shapes/semantic-elements";
+import {
+  SHAPE_CATEGORIES,
+  filterShapeCategories,
+  DIAGRAM_COLLECTIONS,
+  type ShapeDefinition,
+  type ShapeCategory,
+} from "./shapes/catalog";
+export { SHAPE_CATEGORIES } from "./shapes/catalog";
 import { IconPicker, IconPickerContent, type AddIconInput } from "./IconPicker";
 import { isSequenceEdgeType } from "../types";
 import {
@@ -23,184 +40,6 @@ import {
 } from "../shortcuts";
 
 export { DEFAULT_COLLAPSED_CATEGORY_IDS } from "./sidebar-defaults";
-
-interface ShapeDefinition {
-  id: string;
-  title: string;
-  defaultLabel?: string;
-  keywords?: string[];
-}
-
-interface ShapeCategory {
-  id: string;
-  title: string;
-  representativeShapeId: string;
-  shapes: ShapeDefinition[];
-}
-
-export const SHAPE_CATEGORIES: ShapeCategory[] = [
-  {
-    id: "general",
-    title: "Basic",
-    representativeShapeId: "star",
-    shapes: [
-      { id: "rect", title: "Rectangle", keywords: ["square", "box"] },
-      { id: "round-rect", title: "Rounded Rect", keywords: ["rounded", "pill"] },
-      { id: "circle", title: "Circle", keywords: ["ellipse", "oval"] },
-      { id: "triangle", title: "Triangle" },
-      { id: "diamond", title: "Diamond", keywords: ["rhombus"] },
-      { id: "pentagon", title: "Pentagon" },
-      { id: "hexagon", title: "Hexagon" },
-      { id: "octagon", title: "Octagon" },
-      { id: "parallelogram", title: "Parallelogram" },
-      { id: "trapezoid", title: "Trapezoid" },
-      { id: "cylinder", title: "Cylinder", keywords: ["db"] },
-      { id: "cloud", title: "Cloud" },
-      { id: "star", title: "Star" },
-      { id: "cross", title: "Cross", keywords: ["plus"] },
-      { id: "callout", title: "Callout", keywords: ["speech", "bubble"] },
-      { id: "note", title: "Note", keywords: ["sticky"] },
-      { id: "card", title: "Card" },
-      { id: "tape", title: "Tape" },
-      { id: "step", title: "Step", keywords: ["chevron", "ribbon"] },
-      { id: "banner", title: "Banner", keywords: ["flag"] },
-      {
-        id: "text",
-        title: "Text",
-        defaultLabel: "",
-        keywords: ["label", "annotation", "heading", "caption"],
-      },
-      { id: "image", title: "Image", keywords: ["photo", "picture"] },
-      { id: "table", title: "Table", keywords: ["db", "entity", "model", "schema"] },
-    ],
-  },
-  {
-    id: "arrows",
-    title: "Arrows",
-    representativeShapeId: "arrow-right",
-    shapes: [
-      { id: "arrow-right", title: "Right Arrow", keywords: ["east"] },
-      { id: "arrow-left", title: "Left Arrow", keywords: ["west"] },
-      { id: "arrow-up", title: "Up Arrow", keywords: ["north"] },
-      { id: "arrow-down", title: "Down Arrow", keywords: ["south"] },
-      { id: "arrow-double-h", title: "Double H", keywords: ["horizontal", "bidirectional"] },
-      { id: "arrow-double-v", title: "Double V", keywords: ["vertical", "bidirectional"] },
-      { id: "chevron", title: "Chevron" },
-      { id: "notched-arrow", title: "Notched Arrow" },
-    ],
-  },
-  ...SEMANTIC_ELEMENT_GROUPS,
-  {
-    id: "icons",
-    title: "Icons",
-    representativeShapeId: "icon",
-    shapes: [],
-  },
-  {
-    id: "flowchart",
-    title: "Flowchart",
-    representativeShapeId: "decision",
-    shapes: [
-      { id: "process", title: "Process", keywords: ["step"] },
-      { id: "decision", title: "Decision", keywords: ["if", "branch"] },
-      { id: "terminator", title: "Terminator", keywords: ["start", "end"] },
-      { id: "document", title: "Document", keywords: ["page"] },
-      { id: "data", title: "Data (I/O)", keywords: ["input", "output"] },
-      { id: "database", title: "Database", keywords: ["db", "storage"] },
-      { id: "predefined", title: "Predefined", keywords: ["subroutine"] },
-      { id: "internal-storage", title: "Int. Storage" },
-      { id: "delay", title: "Delay", keywords: ["wait"] },
-      { id: "manual-input", title: "Manual Input" },
-      { id: "manual-operation", title: "Manual Op" },
-      { id: "display", title: "Display", keywords: ["screen"] },
-      { id: "preparation", title: "Preparation", keywords: ["prep"] },
-      { id: "loop-limit", title: "Loop Limit" },
-    ],
-  },
-  {
-    id: "uml",
-    title: "UML",
-    representativeShapeId: "actor",
-    shapes: [
-      { id: "actor", title: "Actor", keywords: ["user", "person", "stick"] },
-      { id: "use-case", title: "Use Case", keywords: ["ellipse"] },
-      { id: "uml-class", title: "Class", keywords: ["attributes", "methods"] },
-      { id: "uml-component", title: "Component" },
-      { id: "uml-interface", title: "Interface", keywords: ["lollipop"] },
-      { id: "uml-package", title: "Package", keywords: ["module"] },
-      { id: "uml-state", title: "State", keywords: ["state machine"] },
-      { id: "uml-object", title: "Object", keywords: ["instance"] },
-      { id: "uml-note", title: "Note", keywords: ["comment"] },
-      { id: "uml-artifact", title: "Artifact", keywords: ["file"] },
-    ],
-  },
-  {
-    id: "bpmn",
-    title: "BPMN",
-    representativeShapeId: "bpmn-gateway-parallel",
-    shapes: [
-      { id: "bpmn-start", title: "Start Event", keywords: ["begin"] },
-      { id: "bpmn-end", title: "End Event", keywords: ["finish"] },
-      { id: "bpmn-intermediate", title: "Intermediate", keywords: ["event"] },
-      { id: "bpmn-task", title: "Task", keywords: ["activity", "step"] },
-      { id: "bpmn-gateway-exclusive", title: "Exclusive GW", keywords: ["xor", "decision"] },
-      { id: "bpmn-gateway-parallel", title: "Parallel GW", keywords: ["and", "fork"] },
-      { id: "bpmn-gateway-inclusive", title: "Inclusive GW", keywords: ["or"] },
-      { id: "bpmn-pool", title: "Pool", keywords: ["lane", "swimlane"] },
-    ],
-  },
-  {
-    id: "er",
-    title: "Entity Relationship",
-    representativeShapeId: "er-multivalued",
-    shapes: [
-      { id: "er-entity", title: "Entity", keywords: ["table"] },
-      { id: "er-weak-entity", title: "Weak Entity" },
-      { id: "er-relationship", title: "Relationship" },
-      { id: "er-weak-relationship", title: "Weak Relation" },
-      { id: "er-attribute", title: "Attribute" },
-      { id: "er-key-attribute", title: "Key Attribute", keywords: ["primary"] },
-      { id: "er-multivalued", title: "Multi-Valued" },
-      { id: "er-derived", title: "Derived", keywords: ["computed"] },
-    ],
-  },
-  {
-    id: "containers",
-    title: "Containers",
-    representativeShapeId: "folder",
-    shapes: [
-      { id: "group", title: "Group", keywords: ["container"] },
-      { id: "folder", title: "Folder", keywords: ["tab", "package"] },
-      { id: "swimlane-h", title: "H. Swimlane", keywords: ["horizontal"] },
-      { id: "swimlane-v", title: "V. Swimlane", keywords: ["vertical"] },
-      { id: "dashed-box", title: "Boundary", keywords: ["dashed"] },
-    ],
-  },
-  {
-    id: "aws",
-    title: "AWS",
-    representativeShapeId: "aws-ec2",
-    shapes: AWS_ICONS.map((i) => ({ id: i.id, title: i.title, keywords: i.keywords })),
-  },
-  {
-    id: "gcp",
-    title: "GCP",
-    representativeShapeId: "gcp-compute-engine",
-    shapes: GCP_ICONS.map((i) => ({ id: i.id, title: i.title, keywords: i.keywords })),
-  },
-  {
-    id: "azure",
-    title: "Azure",
-    representativeShapeId: "azure-vm",
-    shapes: AZURE_ICONS.map((i) => ({ id: i.id, title: i.title, keywords: i.keywords })),
-  },
-  {
-    id: "infra",
-    title: "Infrastructure",
-    representativeShapeId: "infra-kubernetes",
-    shapes: INFRA_ICONS.map((i) => ({ id: i.id, title: i.title, keywords: i.keywords })),
-  },
-];
 
 interface SidebarLeftProps {
   onAddNode: (type: string, title: string) => void;
@@ -264,15 +103,18 @@ function ShapeButton({
       onClick={onClick}
       title={title}
       aria-label={`${isEdgeTool ? "Connect" : "Add"} ${title} ${isEdgeTool ? "between participants" : "to canvas"}`}
-      className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border border-border/60 bg-card/60
-        hover:bg-accent hover:border-primary/30 ${isEdgeTool ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}
+      className={`group flex min-h-20 min-w-0 flex-col items-center justify-start gap-1.5 rounded-lg border border-transparent px-1 py-1.5 text-foreground
+        hover:bg-accent hover:border-primary/20 ${isEdgeTool ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"}
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-        transition-colors duration-100`}
+        transition-colors duration-100 motion-reduce:transition-none`}
     >
-      <ShapeThumbnail type={shapeId} size={28} />
-      <span className="text-[8px] text-muted-foreground leading-tight truncate w-full text-center">
-        {title}
+      <span
+        aria-hidden="true"
+        className="flex h-7 w-full items-center justify-center text-muted-foreground transition-colors duration-100 group-hover:text-primary group-focus-visible:text-primary motion-reduce:transition-none"
+      >
+        <ShapeThumbnail type={shapeId} size={24} />
       </span>
+      <span className="w-full break-words text-center text-xs leading-4">{title}</span>
     </button>
   );
 }
@@ -292,7 +134,7 @@ function IconGroupTool({
         render={
           <button
             type="button"
-            className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary data-popup-open:bg-accent data-popup-open:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title={
               shortcutDigit
                 ? `Icons: search the Iconify library (${shortcutDigit})`
@@ -433,7 +275,7 @@ function ElementGroupTool({
             onDragStart={
               selectedIsEdgeTool ? undefined : (event) => setShapeDragData(event, selectedShape)
             }
-            className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary data-popup-open:bg-accent data-popup-open:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title={
               shortcutDigit
                 ? `${category.title}: ${selectedShape.title} (${shortcutDigit})`
@@ -485,8 +327,8 @@ function ElementGroupTool({
         <div className="custom-scrollbar min-h-0 overflow-y-auto px-3 pb-3">
           {visibleShapes.length > 0 ? (
             <div
-              className="grid grid-cols-4 gap-2"
-              onKeyDown={(event) => handleShapeGridKeyDown(event, 4)}
+              className="grid grid-cols-3 gap-2"
+              onKeyDown={(event) => handleShapeGridKeyDown(event, 3)}
             >
               {visibleShapes.map((shape) => {
                 const selected = shape.id === selectedShape.id;
@@ -498,7 +340,7 @@ function ElementGroupTool({
                     onClick={() => handleChooseShape(shape)}
                     aria-label={`${isEdgeTool ? "Connect" : "Add"} ${shape.title} ${isEdgeTool ? "between participants" : "to canvas"}`}
                     aria-pressed={selected}
-                    className={`relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`relative flex min-h-24 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selected ? "bg-accent text-primary" : "text-foreground hover:bg-accent"
                     }`}
                   >
@@ -540,7 +382,7 @@ function ElementGroupPicker({
         render={
           <button
             type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary data-popup-open:bg-accent data-popup-open:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="Choose element groups"
             aria-label="Choose element groups"
           />
@@ -718,7 +560,7 @@ export function CollapsedElementsRail({
       <button
         type="button"
         onClick={onExpand}
-        className="absolute -right-5 top-1/2 -z-10 flex h-12 w-10 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-border bg-card pl-[20px] text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="absolute -right-5 top-1/2 -z-10 flex h-12 w-10 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-border bg-card pl-[20px] text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary data-popup-open:bg-accent data-popup-open:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         title={`Expand elements panel (${shortcutHint("toggleElementsPanel")})`}
         aria-label="Expand elements panel"
         aria-keyshortcuts={SHORTCUTS.toggleElementsPanel.label}
@@ -734,127 +576,235 @@ export function SidebarLeft({
   onAddIcon = NOOP_ADD_ICON,
   onCollapse,
 }: SidebarLeftProps) {
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    general: true,
-    arrows: false,
-    icons: true,
-    sequence: false,
-    architecture: true,
-    boundaries: false,
-    lifecycle: false,
-    dataflow: false,
-    annotations: false,
-    flowchart: true,
-    uml: false,
-    bpmn: false,
-    er: false,
-    containers: false,
-    aws: false,
-    gcp: false,
-    azure: false,
-    infra: false,
-  });
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ general: true });
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
-
-  const toggleSection = (sectionId: string) => {
-    setOpenSections((prev) => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  const [collectionId, setCollectionId] = useState("all");
+  const filterId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const collection = DIAGRAM_COLLECTIONS.find((item) => item.id === collectionId);
+  const filteredCategories = useMemo(
+    () => filterShapeCategories(searchQuery, collectionId),
+    [searchQuery, collectionId],
+  );
+  const isFiltered = searchQuery.trim().length > 0 || collectionId !== "all";
+  const resultCount = filteredCategories.reduce(
+    (total, category) => total + category.shapes.length,
+    0,
+  );
+  const clearSearch = () => {
+    setSearchQuery("");
+    searchRef.current?.focus();
   };
-
-  const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return SHAPE_CATEGORIES;
-    const query = searchQuery.toLowerCase().trim();
-    return SHAPE_CATEGORIES.map((category) => ({
-      ...category,
-      shapes: category.shapes.filter((shape) => {
-        return matchesShape(shape, query);
-      }),
-    })).filter((category) => category.shapes.length > 0);
-  }, [searchQuery]);
-
-  const isSearching = searchQuery.trim().length > 0;
 
   return (
     <div className="dm-elements-panel dm-panel-enter relative h-full w-full">
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-card">
-        {/* Panel title */}
-        <div className="flex items-center px-4 pt-4 pb-2">
-          <h2 className="text-base font-semibold tracking-tight text-foreground">Elements</h2>
-        </div>
-
-        {/* Search */}
-        <div className="px-3 pb-2.5">
-          <div className="relative">
-            <Search
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              size={14}
-            />
-            <input
-              type="text"
-              placeholder="Search Elements"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="min-h-10 w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-3 text-sm
-              focus:ring-1 focus:ring-ring focus:border-primary outline-none
-              placeholder:text-muted-foreground"
-            />
-          </div>
-        </div>
-
-        {/* Shape categories */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {filteredCategories.map((category) => (
-            <div key={category.id}>
-              <button
-                onClick={() => toggleSection(category.id)}
-                aria-expanded={isSearching || openSections[category.id]}
-                className="flex items-center justify-between w-full px-4 py-2 text-left text-sm font-semibold
-                min-h-10 text-foreground border-b border-border/60 hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring transition-colors"
-              >
-                {category.title}
-                <ChevronDown
-                  size={14}
-                  className={`text-muted-foreground transition-transform ${
-                    isSearching || openSections[category.id] ? "" : "-rotate-90"
-                  }`}
-                />
-              </button>
-              {(isSearching || openSections[category.id]) &&
-                (category.id === "icons" ? (
-                  <div className="p-2">
-                    <IconPicker onAddIcon={onAddIcon} />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 gap-1 p-2">
-                    {category.shapes.map((shape) => (
-                      <ShapeButton
-                        key={shape.id}
-                        shapeId={shape.id}
-                        title={shape.title}
-                        defaultLabel={shape.defaultLabel}
-                        onClick={() => onAddNode(shape.id, shape.defaultLabel ?? shape.title)}
-                      />
-                    ))}
-                  </div>
-                ))}
-            </div>
-          ))}
-          {filteredCategories.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground text-xs">No shapes found</div>
+      <aside
+        aria-label="Element library"
+        className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card"
+      >
+        <div className="flex shrink-0 items-center gap-2 px-4 pb-3 pt-4">
+          <span className="flex size-8 items-center justify-center rounded bg-accent text-primary">
+            <Shapes size={18} aria-hidden="true" />
+          </span>
+          <h2 className="flex-1 text-sm font-semibold tracking-tight text-foreground">Elements</h2>
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              title={`Hide elements panel (${shortcutHint("toggleElementsPanel")})`}
+              aria-label="Hide elements panel"
+              aria-keyshortcuts={SHORTCUTS.toggleElementsPanel.label}
+              className="-mr-2 flex size-10 items-center justify-center rounded text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <PanelLeftClose size={18} aria-hidden="true" />
+            </button>
           )}
         </div>
-      </div>
-      {onCollapse && (
-        <button
-          type="button"
-          onClick={onCollapse}
-          className="absolute -right-5 top-1/2 -z-10 flex h-12 w-10 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 border-border bg-card pl-[20px] text-muted-foreground transition-colors duration-100 hover:bg-accent hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          title={`Hide elements panel (${shortcutHint("toggleElementsPanel")})`}
-          aria-label="Hide elements panel"
-          aria-keyshortcuts={SHORTCUTS.toggleElementsPanel.label}
-        >
-          <ChevronLeft size={14} aria-hidden="true" />
-        </button>
-      )}
+        <div className="shrink-0 space-y-3 border-b border-border px-3 pb-3">
+          <div className="relative">
+            <Search
+              size={16}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              ref={searchRef}
+              type="text"
+              aria-label="Search elements"
+              placeholder={collection ? "Search this library…" : "Search all elements…"}
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  clearSearch();
+                }
+              }}
+              className="h-11 w-full rounded border border-border bg-background pl-9 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear element search"
+                className="absolute right-0.5 top-0.5 flex size-10 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          <DiagramCollectionPicker
+            value={collectionId}
+            onChange={(id) => {
+              setCollectionId(id);
+              setSearchQuery("");
+            }}
+          />
+          {collection && (
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">
+                {collection.elementIds.length} elements in this library
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setCollectionId("all");
+                  setSearchQuery("");
+                }}
+                className="min-h-10 rounded px-2 font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                View all
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
+          {collection && !searchQuery && (
+            <p className="px-2 pb-1 pt-3 text-xs leading-5 text-muted-foreground">
+              {collection.hint}
+            </p>
+          )}
+          {searchQuery.trim() && (
+            <p role="status" className="px-2 pt-3 text-xs text-muted-foreground">
+              {resultCount} {resultCount === 1 ? "element" : "elements"} found
+            </p>
+          )}
+          {filteredCategories.map((category) => {
+            const open = isFiltered || !!openSections[category.id];
+            const showAll = isFiltered || expandedGroups[category.id];
+            const shapes = showAll ? category.shapes : category.shapes.slice(0, 9);
+            return (
+              <section key={category.id} className="border-b border-border/60 last:border-b-0">
+                {isFiltered ? (
+                  <h3 className="px-2 pb-1 pt-4 text-xs font-semibold text-foreground">
+                    {collection ? "Elements" : category.title}
+                  </h3>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={category.title}
+                    aria-expanded={open}
+                    aria-controls={`${filterId}-${category.id}`}
+                    onClick={() =>
+                      setOpenSections((current) => ({
+                        ...current,
+                        [category.id]: !current[category.id],
+                      }))
+                    }
+                    className="flex min-h-12 w-full items-center gap-2 rounded px-2 py-2 text-left text-xs font-medium text-foreground transition-colors duration-100 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={open ? "text-primary" : "text-muted-foreground"}
+                    >
+                      <ShapeThumbnail type={category.representativeShapeId} size={18} />
+                    </span>
+                    <span className="flex-1">{category.title}</span>
+                    <span aria-hidden="true" className="text-xs tabular-nums text-muted-foreground">
+                      {category.shapes.length || ""}
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      aria-hidden="true"
+                      className={`shrink-0 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none ${open ? "" : "-rotate-90"}`}
+                    />
+                  </button>
+                )}
+                <div id={`${filterId}-${category.id}`} hidden={!open}>
+                  {open &&
+                    (category.id === "icons" ? (
+                      <div className="px-2 pb-3">
+                        <IconPicker onAddIcon={onAddIcon} />
+                      </div>
+                    ) : (
+                      <>
+                        <div
+                          className="grid grid-cols-3 gap-1 pb-2"
+                          onKeyDown={(event) => handleShapeGridKeyDown(event, 3)}
+                        >
+                          {shapes.map((shape) => (
+                            <ShapeButton
+                              key={shape.id}
+                              shapeId={shape.id}
+                              title={shape.title}
+                              defaultLabel={shape.defaultLabel}
+                              onClick={() => onAddNode(shape.id, shape.defaultLabel ?? shape.title)}
+                            />
+                          ))}
+                        </div>
+                        {!isFiltered && category.shapes.length > 9 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedGroups((current) => ({
+                                ...current,
+                                [category.id]: !current[category.id],
+                              }))
+                            }
+                            className="mb-2 flex min-h-10 w-full items-center justify-center gap-1 rounded text-xs font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            {showAll ? "Show fewer" : `Show ${category.shapes.length - 9} more`}
+                            <ChevronDown
+                              size={14}
+                              aria-hidden="true"
+                              className={showAll ? "rotate-180" : ""}
+                            />
+                          </button>
+                        )}
+                      </>
+                    ))}
+                </div>
+              </section>
+            );
+          })}
+          {filteredCategories.length === 0 && (
+            <div className="px-3 py-8 text-center">
+              <Search size={24} aria-hidden="true" className="mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">
+                No matching elements{collection ? ` in ${collection.title}` : ""}.
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Try another name or browse all libraries.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCollectionId("all");
+                  clearSearch();
+                }}
+                className="mt-3 min-h-10 rounded bg-accent px-3 text-xs font-medium text-primary hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Show all elements
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2 border-t border-border bg-background px-4 py-3 text-xs text-muted-foreground">
+          <MousePointer2 size={14} aria-hidden="true" />
+          <span>Click to add · Drag to place</span>
+        </div>
+      </aside>
     </div>
   );
 }

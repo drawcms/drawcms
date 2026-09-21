@@ -16,9 +16,7 @@ export interface ShapeCategory {
 }
 
 /**
- * Data-only element catalogue consumed by the agent-facing visual grammar.
- * An exhaustive test compares it with the human palette so the two surfaces
- * cannot drift when an element is added or removed.
+ * Shared by the human palette, replacement picker, and agent visual grammar.
  */
 export const SHAPE_CATEGORIES: ShapeCategory[] = [
   {
@@ -205,3 +203,263 @@ export const SHAPE_CATEGORY_IDS = SHAPE_CATEGORIES.map((category) => category.id
 export const PALETTE_ELEMENT_IDS = SHAPE_CATEGORIES.flatMap((category) =>
   category.shapes.map((shape) => shape.id),
 );
+
+export interface DiagramCollection {
+  id: string;
+  title: string;
+  keywords: string[];
+  elementIds: string[];
+  hint: string;
+}
+
+/** Curated views reuse stable element IDs; a shape belongs to one base category. */
+export const DIAGRAM_COLLECTIONS: DiagramCollection[] = [
+  {
+    id: "flowchart",
+    title: "Flowchart",
+    keywords: ["flow chart", "workflow"],
+    elementIds: [
+      "process",
+      "decision",
+      "terminator",
+      "document",
+      "data",
+      "database",
+      "predefined",
+      "delay",
+    ],
+    hint: "Connect steps with arrows. Label decision branches Yes and No.",
+  },
+  {
+    id: "mind-map",
+    title: "Mind Map",
+    keywords: ["brainstorm", "mindmap"],
+    elementIds: ["mind-topic", "mind-branch", "text"],
+    hint: "Place a central topic, then connect ideas around it with plain lines.",
+  },
+  {
+    id: "org-chart",
+    title: "Org Chart",
+    keywords: ["organization", "organisation", "hierarchy"],
+    elementIds: ["org-role", "rect", "text", "group"],
+    hint: "Arrange roles in levels and connect them with elbow lines.",
+  },
+  {
+    id: "erd",
+    title: "ERD",
+    keywords: ["entity relationship", "database model", "schema"],
+    elementIds: [
+      "er-entity",
+      "er-weak-entity",
+      "table",
+      "er-relationship",
+      "er-attribute",
+      "er-key-attribute",
+      "er-multivalued",
+      "er-derived",
+    ],
+    hint: "Edit entity attributes or table rows. Use connector labels such as 1 and 0..* for cardinality.",
+  },
+  {
+    id: "sequence",
+    title: "Sequence Diagram",
+    keywords: ["interaction", "request response"],
+    elementIds: [
+      "sequence-actor",
+      "sequence-participant",
+      "sequence-activation",
+      "sequence-message",
+      "sequence-message-async",
+      "sequence-message-return",
+      "sequence-message-self",
+      "sequence-frame",
+      "sequence-reference",
+      "sequence-note",
+      "sequence-time",
+      "sequence-destroy",
+    ],
+    hint: "Place lifelines, then choose a message tool and connect participants in time order.",
+  },
+  {
+    id: "data-flow",
+    title: "Data Flow Diagram",
+    keywords: ["dfd"],
+    elementIds: ["dfd-external", "dfd-process", "dfd-store", "data-stream", "data-stage", "text"],
+    hint: "Connect entities, processes, and stores. Name each arrow for the data it carries.",
+  },
+  {
+    id: "timeline",
+    title: "Timeline Diagram",
+    keywords: ["roadmap", "milestones", "schedule"],
+    elementIds: ["timeline-axis", "timeline-milestone", "text", "note"],
+    hint: "Place milestones along the axis. Use text above each marker for dates.",
+  },
+  {
+    id: "architecture",
+    title: "System Architecture",
+    keywords: ["software architecture"],
+    elementIds: [
+      "arch-frontend",
+      "arch-backend",
+      "database",
+      "arch-database",
+      "arch-cloud",
+      "arch-security",
+      "arch-messagebus",
+      "arch-external",
+      "boundary-region",
+      "boundary-security-group",
+      "boundary-trust",
+      "boundary-deployment",
+    ],
+    hint: "Connect services and stores; use boundaries to group deployment or security zones.",
+  },
+  {
+    id: "class",
+    title: "Class Diagram",
+    keywords: ["uml class", "object model"],
+    elementIds: ["uml-class", "uml-object", "uml-interface", "uml-package", "uml-note"],
+    hint: "Edit attributes and methods in each class. Label associations with multiplicities such as 1 and 1..*.",
+  },
+  {
+    id: "state",
+    title: "State Diagram",
+    keywords: ["state machine", "statechart"],
+    elementIds: [
+      "activity-initial",
+      "uml-state",
+      "decision",
+      "activity-final",
+      "state-history",
+      "uml-note",
+    ],
+    hint: "Connect states with transitions and label each transition with its trigger.",
+  },
+  {
+    id: "deployment",
+    title: "Deployment Diagram",
+    keywords: ["hosts", "runtime"],
+    elementIds: [
+      "deployment-node",
+      "uml-artifact",
+      "uml-component",
+      "database",
+      "arch-backend",
+      "boundary-deployment",
+    ],
+    hint: "Drop services and databases inside deployment nodes to group them by host.",
+  },
+  {
+    id: "component",
+    title: "Component Diagram",
+    keywords: ["uml component", "modules"],
+    elementIds: ["uml-component", "uml-interface", "uml-package", "uml-artifact", "uml-note"],
+    hint: "Connect components with dependencies; use dashed lines and interface symbols.",
+  },
+  {
+    id: "use-case",
+    title: "Use Case Diagram",
+    keywords: ["usecase", "actors"],
+    elementIds: ["actor", "use-case", "system-boundary", "uml-note"],
+    hint: "Place use cases inside the system boundary and connect actors outside it.",
+  },
+  {
+    id: "network",
+    title: "Network Diagram",
+    keywords: ["topology", "lan"],
+    elementIds: [
+      "cloud",
+      "network-router",
+      "network-switch",
+      "network-server",
+      "arch-security",
+      "boundary-region",
+    ],
+    hint: "Connect routers, switches, and servers; label links with protocols or ports.",
+  },
+  {
+    id: "activity",
+    title: "Activity Diagram",
+    keywords: ["parallel", "fork", "join"],
+    elementIds: [
+      "activity-initial",
+      "uml-state",
+      "decision",
+      "activity-fork",
+      "activity-fork-v",
+      "activity-final",
+      "swimlane-h",
+      "swimlane-v",
+    ],
+    hint: "Use fork/join bars for parallel work and swimlanes for responsibility.",
+  },
+  {
+    id: "cicd",
+    title: "CI/CD Pipeline",
+    keywords: ["ci cd", "cicd", "continuous integration", "devops"],
+    elementIds: [
+      "process",
+      "decision",
+      "terminator",
+      "activity-fork",
+      "activity-fork-v",
+      "data-stage",
+      "uml-artifact",
+    ],
+    hint: "Connect commit, build, test, and deploy stages. Label pass/fail branches.",
+  },
+  {
+    id: "user-flow",
+    title: "User Flow Diagram",
+    keywords: ["ux", "journey", "navigation"],
+    elementIds: ["process", "decision", "terminator", "arch-frontend", "actor", "note"],
+    hint: "Connect screens and actions, using decisions for sign-in and other branches.",
+  },
+];
+
+export function filterShapeCategories(query: string, collectionId = "all"): ShapeCategory[] {
+  const normalized = query.trim().toLowerCase();
+  const collection = DIAGRAM_COLLECTIONS.find((item) => item.id === collectionId);
+  const allowed = collection ? new Set(collection.elementIds) : undefined;
+  const diagramMatches = new Set(
+    DIAGRAM_COLLECTIONS.filter((item) =>
+      [item.title, item.id, ...item.keywords].some((text) =>
+        text.toLowerCase().includes(normalized),
+      ),
+    ).flatMap((item) => item.elementIds),
+  );
+  const categories = SHAPE_CATEGORIES.map((category) => ({
+    ...category,
+    shapes: category.shapes.filter(
+      (shape) =>
+        (!allowed || allowed.has(shape.id)) &&
+        (!normalized ||
+          category.title.toLowerCase().includes(normalized) ||
+          diagramMatches.has(shape.id) ||
+          [shape.id, shape.title, ...(shape.keywords ?? [])].some((text) =>
+            text.toLowerCase().includes(normalized),
+          )),
+    ),
+  })).filter(
+    (category) =>
+      category.shapes.length > 0 || (!normalized && !allowed && category.id === "icons"),
+  );
+  if (!collection) return categories;
+  const matches = new Map(
+    categories.flatMap((category) => category.shapes.map((shape) => [shape.id, shape] as const)),
+  );
+  const shapes = collection.elementIds.flatMap((id) => {
+    const shape = matches.get(id);
+    return shape ? [shape] : [];
+  });
+  return shapes.length
+    ? [
+        {
+          id: `diagram-${collection.id}`,
+          title: collection.title,
+          representativeShapeId: shapes[0].id,
+          shapes,
+        },
+      ]
+    : [];
+}

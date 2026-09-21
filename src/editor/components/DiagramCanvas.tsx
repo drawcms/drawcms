@@ -687,8 +687,14 @@ const CustomShapeNode = ({
       <NodeResizer
         color="#0c8c5e"
         isVisible={selected && !data?.locked}
-        minWidth={60}
-        minHeight={40}
+        minWidth={
+          data.type === "activity-fork-v"
+            ? 12
+            : String(data.type).startsWith("activity-") || data.type === "state-history"
+              ? 32
+              : 60
+        }
+        minHeight={data.type === "activity-fork" ? 12 : 40}
         handleClassName={isSequenceNode ? "dm-sequence-resize-handle" : undefined}
         lineClassName={isSequenceNode ? "dm-sequence-resize-line" : undefined}
       />

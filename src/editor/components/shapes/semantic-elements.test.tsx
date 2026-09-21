@@ -23,6 +23,11 @@ afterEach(cleanup);
 describe("semantic element catalogue", () => {
   it("provides every requested group with a distinct, valid representative", () => {
     expect(SEMANTIC_ELEMENT_GROUPS.map((group) => group.id)).toEqual([
+      "planning",
+      "activity",
+      "deployment",
+      "network",
+      "dfd",
       "sequence",
       "architecture",
       "boundaries",
@@ -32,7 +37,7 @@ describe("semantic element catalogue", () => {
     ]);
 
     for (const group of SEMANTIC_ELEMENT_GROUPS) {
-      expect(group.shapes.length).toBeGreaterThanOrEqual(5);
+      expect(group.shapes.length).toBeGreaterThanOrEqual(2);
       expect(group.shapes.some((shape) => shape.id === group.representativeShapeId)).toBe(true);
     }
   });
@@ -54,8 +59,8 @@ describe("semantic element catalogue", () => {
 
     for (const type of SEMANTIC_SHAPE_TYPES) {
       const size = getNodeSize(type);
-      expect(size.width, `${type} width`).toBeGreaterThanOrEqual(60);
-      expect(size.height, `${type} height`).toBeGreaterThanOrEqual(60);
+      expect(size.width, `${type} width`).toBeGreaterThanOrEqual(16);
+      expect(size.height, `${type} height`).toBeGreaterThanOrEqual(16);
     }
   });
 
@@ -81,7 +86,7 @@ describe("semantic element catalogue", () => {
     expect(getSemanticLabelPlacement("sequence-participant")).toBe("participant-header");
     expect(getSemanticLabelPlacement("sequence-message-return")).toBe("message-header");
     expect(SEMANTIC_STRETCH_ARTWORK_TYPES).toEqual(
-      new Set(["sequence-activation", "sequence-destroy"]),
+      new Set(["sequence-activation", "sequence-destroy", "network-switch"]),
     );
     expect(SEQUENCE_NODE_TYPES).toEqual(
       new Set([

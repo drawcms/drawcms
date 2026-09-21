@@ -179,7 +179,8 @@ export function ContainerNode({
           <div
             className={`absolute z-10 left-2 top-1.5 min-h-7 overflow-hidden ${isSemanticContainer ? "rounded px-1" : ""}`}
             style={{
-              maxWidth: "90%",
+              maxWidth: shapeType === "deployment-node" ? "78%" : "90%",
+              ...(shapeType === "deployment-node" ? { top: "16%" } : {}),
               maxHeight: isEditing ? "none" : "45%",
               ...(isSemanticContainer
                 ? { backgroundColor: isStoryTarget ? STORY_ACTIVE_FILL : headerColor || fillColor }

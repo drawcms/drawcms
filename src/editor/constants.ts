@@ -210,6 +210,10 @@ export interface LabelInset {
 }
 
 export const SHAPE_LABEL_INSETS: Record<string, LabelInset> = {
+  "mind-topic": { top: 15, right: 15, bottom: 15, left: 15 },
+  "mind-branch": { top: 15, right: 15, bottom: 15, left: 15 },
+  "dfd-process": { top: 15, right: 15, bottom: 15, left: 15 },
+  "org-role": { top: 22, right: 10, bottom: 10, left: 10 },
   // Inscribed rectangle of a rhombus is half of each axis.
   diamond: { top: 25, right: 25, bottom: 25, left: 25 },
   decision: { top: 25, right: 25, bottom: 25, left: 25 },
