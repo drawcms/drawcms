@@ -38,7 +38,10 @@ export function OnboardingOverlay({
         if (!next) onClose();
       }}
     >
-      <DialogContent className="max-w-lg" showCloseButton={false}>
+      <DialogContent
+        className={showTemplates ? "sm:max-w-3xl" : "sm:max-w-lg"}
+        showCloseButton={false}
+      >
         <button
           onClick={onClose}
           aria-label="Close onboarding"
@@ -125,35 +128,40 @@ export function OnboardingOverlay({
             </button>
           </div>
         ) : (
-          <div className="mt-2">
+          <div className="mt-2 flex min-h-0 flex-1 flex-col">
             <button
               onClick={() => setShowTemplates(false)}
-              className="mb-2 text-xs text-muted-foreground hover:text-muted-foreground"
+              className="mb-2 shrink-0 self-start text-xs text-muted-foreground hover:text-muted-foreground"
             >
               ← Back
             </button>
-            <div className="grid gap-2.5">
-              {TEMPLATES.map((template) => (
-                <button
-                  key={template.id}
-                  className={choiceClass}
-                  onClick={() => onChoose(template.id, true)}
-                >
-                  <span className={iconClass}>
-                    <LayoutTemplate size={20} />
-                  </span>
-                  <span className="flex-1">
-                    <span className="block font-medium text-foreground">{template.name}</span>
-                    <span className="block text-sm text-muted-foreground">
-                      {template.description}
+            {/* Scrolls inside the height-capped dialog: with 18 templates a
+             * single unbounded column ran past the viewport, so the last
+             * entries were unreachable without zooming the browser out. */}
+            <div className="-mr-1 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    className={choiceClass}
+                    onClick={() => onChoose(template.id, true)}
+                  >
+                    <span className={iconClass}>
+                      <LayoutTemplate size={20} />
                     </span>
-                  </span>
-                  <ChevronRight
-                    size={16}
-                    className="text-muted-foreground group-hover:text-primary"
-                  />
-                </button>
-              ))}
+                    <span className="flex-1">
+                      <span className="block font-medium text-foreground">{template.name}</span>
+                      <span className="block text-sm text-muted-foreground">
+                        {template.description}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={16}
+                      className="text-muted-foreground group-hover:text-primary"
+                    />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

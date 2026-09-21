@@ -5,13 +5,27 @@ import { deterministicStringify } from "./serialize";
 import { reconcileMotionTargets } from "../motion/model";
 
 describe("onboarding templates", () => {
-  it("offers the four promised templates", () => {
+  it("offers every diagram-type template", () => {
     expect(TEMPLATES.map((t) => t.id).sort()).toEqual(
       [
         "architecture-request-flow",
         "deployment-pipeline",
         "incident-timeline",
         "sequence-diagram",
+        "flowchart",
+        "mind-map",
+        "org-chart",
+        "erd",
+        "data-flow-diagram",
+        "timeline-diagram",
+        "class-diagram",
+        "state-diagram",
+        "deployment-diagram",
+        "component-diagram",
+        "use-case-diagram",
+        "network-diagram",
+        "activity-diagram",
+        "user-flow-diagram",
       ].sort(),
     );
   });
@@ -22,6 +36,20 @@ describe("onboarding templates", () => {
       ["deployment-pipeline", 3],
       ["incident-timeline", 3],
       ["sequence-diagram", 7],
+      ["flowchart", 4],
+      ["mind-map", 3],
+      ["org-chart", 3],
+      ["erd", 2],
+      ["data-flow-diagram", 2],
+      ["timeline-diagram", 3],
+      ["class-diagram", 2],
+      ["state-diagram", 3],
+      ["deployment-diagram", 3],
+      ["component-diagram", 2],
+      ["use-case-diagram", 3],
+      ["network-diagram", 3],
+      ["activity-diagram", 4],
+      ["user-flow-diagram", 4],
     ]);
 
     for (const template of TEMPLATES) {
