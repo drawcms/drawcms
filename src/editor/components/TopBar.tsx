@@ -237,6 +237,7 @@ export function TopBar({
           {!presentation && (
             <button
               type="button"
+              data-guide="animate"
               onClick={() => setIsAnimating(!isAnimating)}
               aria-pressed={isAnimating}
               aria-label={isAnimating ? "Stop all motion" : "Animate all presets"}

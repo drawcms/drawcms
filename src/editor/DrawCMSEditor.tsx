@@ -391,6 +391,17 @@ export function DrawCMSEditor({
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [guideReset, setGuideReset] = useState(0);
   const [stepsPanelOpen, setStepsPanelOpen] = useState(false);
+  /** Bumped on each save or export, so the guide can tell the reader did it. */
+  const [savedOrExported, setSavedOrExported] = useState(0);
+  /**
+   * Deliberate presses of the Animate toggle and the Steps button. The guide
+   * needs these separately from the states they change, because loading a
+   * template turns motion on and opens the Steps panel by itself — and clicking
+   * empty canvas closes the panel again. Counting the presses is the only
+   * signal that means "the reader did this".
+   */
+  const [animateToggles, setAnimateToggles] = useState(0);
+  const [stepsPanelOpens, setStepsPanelOpens] = useState(0);
   const [canvasDismissSignal, setCanvasDismissSignal] = useState(0);
   const [stepMenu, setStepMenu] = useState<{
     x: number;
@@ -627,10 +638,12 @@ export function DrawCMSEditor({
       const document = template?.build();
       if (document) {
         applyDocument(document);
-        if (autoplay) {
-          setStepsPanelOpen(true);
-          if (!reducedMotion) setIsGlobalAnimating(true);
-        }
+        // Start the motion loop, but leave the Steps panel closed. The right
+        // rail holds one panel at a time and the Steps panel outranks the
+        // inspector, so pre-opening it meant selecting an element right after
+        // loading a template showed no properties and no Motion tab at all.
+        // The Steps button is still one click away.
+        if (autoplay && !reducedMotion) setIsGlobalAnimating(true);
       }
       dismissOnboarding();
       setShowOnboarding(false);
@@ -813,6 +826,7 @@ export function DrawCMSEditor({
         buildDocument(nodesRef.current, edgesRef.current),
       );
       downloadBlob(new Blob([content], { type: "application/json" }), filename);
+      setSavedOrExported((count) => count + 1);
       // A cloud backup is an export, not the persistence event represented by
       // the host save indicator.
       if (documentMenuMode === "local") setDirty(false);
@@ -832,6 +846,7 @@ export function DrawCMSEditor({
           : artifact.content,
         artifact.filename,
       );
+      setSavedOrExported((count) => count + 1);
     },
     [host, buildDocument, nodesRef, edgesRef],
   );
@@ -910,6 +925,42 @@ export function DrawCMSEditor({
     id: edge.id,
     label: (edge.label as string) || (edge.data?.label as string) || edge.id,
   }));
+  // Live signals for the hands-on guide: it compares these against a snapshot
+  // taken when it mounted, so it can tell an element the reader just added from
+  // one the loaded template already had.
+  const guideSignals = useMemo(
+    () => ({
+      nodeCount: state.nodes.length,
+      edgeCount: state.edges.length,
+      // Fingerprint rather than a count, so swapping the preset on an element
+      // that already animated still registers as the reader doing the step.
+      motionSignature: [
+        ...state.nodes.map((node) => `n:${node.id}:${node.data?.preset ?? ""}`),
+        ...state.edges.map((edge) => `e:${edge.id}:${edge.data?.preset ?? ""}`),
+      ].join("|"),
+      storyStepCount: storyState.scenes.reduce((total, scene) => total + scene.steps.length, 0),
+      selection: state.selectedNodeId
+        ? `n:${state.selectedNodeId}`
+        : state.selectedEdgeId
+          ? `e:${state.selectedEdgeId}`
+          : "",
+      isAnimating: state.isGlobalAnimating,
+      animateToggles,
+      stepsPanelOpens,
+      savedOrExported,
+    }),
+    [
+      state.nodes,
+      state.edges,
+      state.selectedNodeId,
+      state.selectedEdgeId,
+      state.isGlobalAnimating,
+      storyState,
+      animateToggles,
+      stepsPanelOpens,
+      savedOrExported,
+    ],
+  );
   const selectedTargets = useMemo<StoryTarget[]>(() => {
     const targets: StoryTarget[] = [
       ...state.nodes
@@ -938,7 +989,19 @@ export function DrawCMSEditor({
   const openSteps = () => {
     state.setShowPresets(false);
     setStepsPanelOpen(true);
+    setStepsPanelOpens((count) => count + 1);
     setStepMenu(null);
+  };
+
+  /**
+   * The top bar's Animate toggle. Wrapped rather than passed straight through so
+   * the press itself is counted for the guide; `setIsGlobalAnimating` is also
+   * called by template autoplay and by the agent control surface, neither of
+   * which is the reader pressing the button.
+   */
+  const toggleGlobalAnimation = (value: boolean) => {
+    setAnimateToggles((count) => count + 1);
+    setIsGlobalAnimating(value);
   };
 
   const dismissCanvasOverlays = () => {
@@ -1241,7 +1304,7 @@ export function DrawCMSEditor({
       {showTopBar && (
         <TopBar
           isAnimating={state.isGlobalAnimating}
-          setIsAnimating={state.setIsGlobalAnimating}
+          setIsAnimating={toggleGlobalAnimation}
           nodes={state.nodes}
           documentName={documentName}
           dirty={dirty}
@@ -1508,7 +1571,7 @@ export function DrawCMSEditor({
         </div>
         {!isPresentation && onboardingReady && !showOnboarding && (
           <Suspense fallback={null}>
-            <LazyGuideBar key={guideReset} />
+            <LazyGuideBar key={guideReset} signals={guideSignals} />
           </Suspense>
         )}
       </div>
