@@ -1,4 +1,6 @@
-<h1 align="center">DrawCMS</h1>
+<p align="center">
+  <a href="https://drawcms.com"><img src="docs/assets/drawcms-thumbnail.png" alt="DrawCMS — a canvas for your AI agent. Architecture, workflows, and sequences: create, animate, share." width="960" /></a>
+</p>
 
 <h3 align="center">Diagrams that explain how a system moves, not just how it is wired.</h3>
 
@@ -6,7 +8,7 @@
 
 <p align="center">
   <a href="https://drawcms.com/docs"><strong>Documentation</strong></a> &nbsp;·&nbsp;
-  <a href="#start"><strong>Get started</strong></a> &nbsp;·&nbsp;
+  <a href="#install-then-describe-your-diagram"><strong>Get started</strong></a> &nbsp;·&nbsp;
   <a href="#build-diagrams-with-an-ai-agent-webmcp"><strong>Agent tools</strong></a> &nbsp;·&nbsp;
   <a href="https://drawcms.com/blog"><strong>Blog</strong></a> &nbsp;·&nbsp;
   <a href="#license"><strong>License</strong></a>
