@@ -34,12 +34,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/demo-shopify-sequence.gif" alt="An animated Shopify order sequence diagram produced in DrawCMS" width="960" />
+  <img src="docs/drawcms-result.gif" alt="An animated Shopify order sequence diagram produced in DrawCMS" width="960" />
   <br/>
-  <sub><strong>The result.</strong> A sequence diagram with connector motion and a narrated step order, exported as a GIF.</sub>
+  <sub><strong>The result.</strong> A sequence diagram with connector motion and a narrated step order</sub>
 </p>
-
-<a id="start"></a>
 
 ### Install, then describe your diagram
 
@@ -268,14 +266,3 @@ Please report security issues privately using the process in [SECURITY.md](SECUR
 DrawCMS is open-source software licensed under [GNU AGPL v3.0 only](LICENSE). If you modify it and make that version available to users over a network, the AGPL generally requires you to offer those users the corresponding source code under the AGPL.
 
 The AGPL does not prohibit a compliant competing hosted service. The DrawCMS name and branding are covered separately by [TRADEMARKS.md](TRADEMARKS.md). Organizations that cannot use the AGPL may request a separate commercial license; see [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md). No commercial rights are granted unless a separate agreement is signed.
-
-## Star history
-
-<p align="center">
-  <a href="https://star-history.com/#drawcms/drawcms&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=drawcms/drawcms&type=Date&theme=dark" />
-      <img src="https://api.star-history.com/svg?repos=drawcms/drawcms&type=Date" alt="DrawCMS star history" width="720" />
-    </picture>
-  </a>
-</p>
