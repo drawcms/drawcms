@@ -70,6 +70,7 @@ import {
 import { addStoryStep, updateStoryStep } from "./story/ops";
 import { resolveStoryTargets } from "./story/active-flow";
 import { dismissOnboarding, isOnboardingDismissed, reopenOnboarding } from "./onboarding/state";
+import { resolveTemplateTarget, shouldAutoOpenOnboarding } from "./onboarding/policy";
 import {
   loadElementPanelPreferences,
   saveElementPanelPreferences,
@@ -279,6 +280,25 @@ export interface DrawCMSEditorProps {
    * already said it will not store the bytes inline.
    */
   onUploadImage?: (file: File) => Promise<string>;
+  /**
+   * Open a template as a NEW document instead of replacing the one on screen.
+   *
+   * Hosts that persist by document identity (cloud, where the editor is bound to
+   * one diagram id and autosaves) must supply this. Without it the only way to
+   * honour a template pick is to replace the open document, which the host then
+   * saves over the user's diagram — the onboarding chooser is reopenable from
+   * File → Show guide, so that is reachable at any time, not just on a blank
+   * canvas.
+   *
+   * Only called when the current document has content; picking a template on an
+   * empty canvas still loads in place, because there is nothing to lose and a
+   * brand-new diagram is exactly where a template belongs.
+   */
+  onCreateFromTemplate?: (template: {
+    id: string;
+    name: string;
+    document: DrawCMSDocument;
+  }) => void | Promise<void>;
   /** Called after the editor has committed and yielded one animation frame. */
   onReady?: () => void;
   /**
@@ -328,6 +348,7 @@ export function DrawCMSEditor({
   webMcp = false,
   chatGptDeepLinkResolver,
   onUploadImage,
+  onCreateFromTemplate,
   onReady,
   animationControl,
 }: DrawCMSEditorProps) {
@@ -364,6 +385,21 @@ export function DrawCMSEditor({
   );
   const docMetaRef = useRef<Partial<DocumentMeta> | undefined>(initialState?.meta);
   const docCanvasRef = useRef<DocumentCanvas>(initialState?.canvas ?? {});
+
+  /**
+   * Did the editor mount with an empty canvas? Derived from the same mount-time
+   * snapshot the graph is seeded from, so it cannot race the document load.
+   *
+   * This gates the first-launch chooser. Dismissal is a per-browser localStorage
+   * flag, not a per-document one, so on its own it let the chooser auto-open over
+   * an already-saved diagram on any browser that had never dismissed it — a fresh
+   * profile, a second machine, cleared storage. Picking anything there replaced
+   * the open document, and a host that autosaves by diagram id persisted that
+   * immediately: the user's diagram silently became the sample.
+   */
+  const mountedEmpty =
+    (initialState?.nodes.length ?? initialNodes?.length ?? 0) === 0 &&
+    (initialState?.edges.length ?? initialEdges?.length ?? 0) === 0;
 
   const host = useMemo(() => createPluginHost(plugins ?? []), [plugins]);
 
@@ -458,9 +494,15 @@ export function DrawCMSEditor({
       setOnboardingReady(true);
       return;
     }
-    setShowOnboarding(!isOnboardingDismissed());
+    setShowOnboarding(
+      shouldAutoOpenOnboarding({
+        variant,
+        dismissed: isOnboardingDismissed(),
+        documentIsEmpty: mountedEmpty,
+      }),
+    );
     setOnboardingReady(true);
-  }, [variant]);
+  }, [variant, mountedEmpty]);
 
   const buildDocument = useCallback(
     (nodes: AppNode[], edges: AppEdge[]): DrawCMSDocument =>
@@ -631,26 +673,6 @@ export function DrawCMSEditor({
   );
   useDrawCMSWebMCP(webMcp && variant === "full", webMcpAdapter);
 
-  const handleChooseTemplate = useCallback(
-    async (templateId: string, autoplay: boolean) => {
-      const { findTemplate } = await import("./document/templates");
-      const template = findTemplate(templateId);
-      const document = template?.build();
-      if (document) {
-        applyDocument(document);
-        // Start the motion loop, but leave the Steps panel closed. The right
-        // rail holds one panel at a time and the Steps panel outranks the
-        // inspector, so pre-opening it meant selecting an element right after
-        // loading a template showed no properties and no Motion tab at all.
-        // The Steps button is still one click away.
-        if (autoplay && !reducedMotion) setIsGlobalAnimating(true);
-      }
-      dismissOnboarding();
-      setShowOnboarding(false);
-    },
-    [applyDocument, reducedMotion, setIsGlobalAnimating],
-  );
-
   const handleDismissOnboarding = useCallback(() => {
     dismissOnboarding();
     setShowOnboarding(false);
@@ -678,15 +700,30 @@ export function DrawCMSEditor({
   } | null>(null);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const pendingReplaceRef = useRef<(() => void) | null>(null);
+  const [replaceLabel, setReplaceLabel] = useState("This action");
   const [confirmClear, setConfirmClear] = useState(false);
 
   const guardReplace = useCallback(
-    (action: () => void) => {
-      const cloudProjectHasContent =
-        documentMenuMode === "cloud" &&
-        (nodesRef.current.length > 0 || edgesRef.current.length > 0);
-      if (dirty || cloudProjectHasContent) {
+    (
+      action: () => void,
+      options?: {
+        /** Copy for the confirmation, e.g. "Loading a template". */
+        label?: string;
+        /**
+         * Confirm whenever the canvas has content, even on a saved local
+         * document. File → New and import keep the older, looser rule; loading a
+         * template opts in, because a template pick is easy to make by accident
+         * from the reopenable guide and there is no undo for a whole-document
+         * replacement.
+         */
+        confirmWhenNotEmpty?: boolean;
+      },
+    ) => {
+      const hasContent = nodesRef.current.length > 0 || edgesRef.current.length > 0;
+      const cloudProjectHasContent = documentMenuMode === "cloud" && hasContent;
+      if (dirty || cloudProjectHasContent || (options?.confirmWhenNotEmpty && hasContent)) {
         pendingReplaceRef.current = action;
+        setReplaceLabel(options?.label ?? "This action");
         setConfirmReplace(true);
       } else {
         action();
@@ -696,12 +733,77 @@ export function DrawCMSEditor({
   );
 
   const handleNewDocument = useCallback(() => {
-    guardReplace(() => applyDocument(createEmptyDocument()));
+    guardReplace(() => applyDocument(createEmptyDocument()), { label: "Starting a new diagram" });
   }, [guardReplace, applyDocument]);
 
   const handleClearCanvas = useCallback(() => {
     setConfirmClear(true);
   }, []);
+
+  /**
+   * Load a template chosen from the onboarding guide.
+   *
+   * Three outcomes, in order of preference:
+   *   1. empty canvas → load in place; nothing can be lost.
+   *   2. content + host can create documents → hand the template to the host as a
+   *      NEW document and leave the open one untouched.
+   *   3. content + no host support → confirm before replacing.
+   *
+   * Previously this called applyDocument() unconditionally, bypassing the same
+   * guardReplace() that File → New and import already used. On a host that
+   * autosaves by diagram id that silently overwrote the open diagram, name
+   * included, and autoplay kept it dirty so it saved repeatedly.
+   */
+  const handleChooseTemplate = useCallback(
+    async (templateId: string, autoplay: boolean) => {
+      const { findTemplate } = await import("./document/templates");
+      const template = findTemplate(templateId);
+      const document = template?.build();
+      if (!document || !template) {
+        dismissOnboarding();
+        setShowOnboarding(false);
+        return;
+      }
+
+      const loadHere = () => {
+        applyDocument(document);
+        // Start the motion loop, but leave the Steps panel closed. The right
+        // rail holds one panel at a time and the Steps panel outranks the
+        // inspector, so pre-opening it meant selecting an element right after
+        // loading a template showed no properties and no Motion tab at all.
+        // The Steps button is still one click away.
+        if (autoplay && !reducedMotion) setIsGlobalAnimating(true);
+      };
+
+      const hasContent = nodesRef.current.length > 0 || edgesRef.current.length > 0;
+      const target = resolveTemplateTarget({
+        documentIsEmpty: !hasContent,
+        hostCanCreateDocument: Boolean(onCreateFromTemplate),
+      });
+      if (target === "new-document") {
+        await onCreateFromTemplate?.({ id: template.id, name: template.name, document });
+      } else if (target === "confirm-replace") {
+        guardReplace(loadHere, {
+          label: `Loading the ${template.name} template`,
+          confirmWhenNotEmpty: true,
+        });
+      } else {
+        loadHere();
+      }
+
+      dismissOnboarding();
+      setShowOnboarding(false);
+    },
+    [
+      applyDocument,
+      guardReplace,
+      onCreateFromTemplate,
+      reducedMotion,
+      setIsGlobalAnimating,
+      nodesRef,
+      edgesRef,
+    ],
+  );
 
   // Deleting every node goes through the same undo-recording path as a human
   // deletion, so one Cmd+Z restores the cleared graph. Orphaned motion/story
@@ -749,17 +851,20 @@ export function DrawCMSEditor({
       const lower = fileName.toLowerCase();
 
       const finishImport = (document: DrawCMSDocument, issues: ImportIssue[]) =>
-        guardReplace(() => {
-          if (issues.length > 0) {
-            setImportReport({
-              sourceLabel: fileName,
-              issues,
-              apply: () => applyDocument(document),
-            });
-          } else {
-            applyDocument(document);
-          }
-        });
+        guardReplace(
+          () => {
+            if (issues.length > 0) {
+              setImportReport({
+                sourceLabel: fileName,
+                issues,
+                apply: () => applyDocument(document),
+              });
+            } else {
+              applyDocument(document);
+            }
+          },
+          { label: "Importing a file" },
+        );
 
       try {
         const importerId =
@@ -1728,7 +1833,7 @@ export function DrawCMSEditor({
           <LazyConfirmReplaceDialog
             open
             onOpenChange={setConfirmReplace}
-            actionLabel="This action"
+            actionLabel={replaceLabel}
             cloudProject={documentMenuMode === "cloud"}
             onConfirm={() => pendingReplaceRef.current?.()}
           />

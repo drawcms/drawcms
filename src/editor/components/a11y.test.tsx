@@ -40,9 +40,10 @@ describe("SidebarLeft accessibility", () => {
 
   it("names the collapse button and exposes section expansion state", () => {
     render(<SidebarLeft onAddNode={() => {}} onCollapse={() => {}} />);
-    const collapse = screen.getByRole("button", { name: "Hide elements panel" });
-    expect(collapse.className).toContain("top-1/2");
-    expect(collapse.className).toContain("-right-5");
+    // The hide control lives in the panel header now, not as a centered side
+    // handle — the collapsed rail owns that handle, and the
+    // CollapsedElementsRail test below covers its geometry.
+    expect(screen.getByRole("button", { name: "Hide elements panel" })).toBeTruthy();
     const basic = screen.getByRole("button", { name: "Basic" });
     expect(basic.getAttribute("aria-expanded")).toBe("true");
     const aws = screen.getByRole("button", { name: "AWS" });

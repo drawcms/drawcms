@@ -56,13 +56,13 @@ supports `--help` and a `--json` machine receipt.
 
 ## Which mode am I in?
 
-|                        | DrawCMS Cloud                                  | Self-hosted editor                          |
-| ---------------------- | ---------------------------------------------- | ------------------------------------------- |
-| Account / login        | Yes (`drawcms login`, device flow)             | None                                        |
-| Repo → project binding | `drawcms init` writes `.drawcms/config.json`   | Not applicable                              |
-| Delivery               | `drawcms push` (diagram gets a cloud URL)      | `drawcms local` (writes a loadable file)    |
-| Stays in sync          | Yes — `status` / `diff` / `pull` / `push`      | Re-run `drawcms local` after changes        |
-| Share links, autosave  | Yes                                            | No — local-only                             |
+|                        | DrawCMS Cloud                                | Self-hosted editor                       |
+| ---------------------- | -------------------------------------------- | ---------------------------------------- |
+| Account / login        | Yes (`drawcms login`, device flow)           | None                                     |
+| Repo → project binding | `drawcms init` writes `.drawcms/config.json` | Not applicable                           |
+| Delivery               | `drawcms push` (diagram gets a cloud URL)    | `drawcms local` (writes a loadable file) |
+| Stays in sync          | Yes — `status` / `diff` / `pull` / `push`    | Re-run `drawcms local` after changes     |
+| Share links, autosave  | Yes                                          | No — local-only                          |
 
 Authoring and validation (`build`, `edit`, `recommend`, `grammar`) are identical
 in both modes and never touch the network.
@@ -154,20 +154,20 @@ from `drawcms local`.
 
 ## Command reference
 
-| Command | Mode | Purpose |
-| --- | --- | --- |
-| `drawcms doctor` | both | Check Node and the diagram engine. |
-| `drawcms build <type> <spec.json>` | both | Build + validate a spec offline. |
-| `drawcms local [<type>] <spec\|name>` | self-hosted | Build for a self-hosted editor; write a loadable document + load hints (`--seed`, `--editor`). |
-| `drawcms edit <name> <ops.json>` | both | Apply incremental graph edits, preserving positions. |
-| `drawcms recommend <entities.json>` | both | Suggest the closest element per entity. |
-| `drawcms grammar [id]` | both | Query the visual grammar (elements, motion, relationships). |
-| `drawcms login` | cloud | Device-flow sign-in; stores a token. |
-| `drawcms init` | cloud | Bind this repo to a DrawCMS project. |
-| `drawcms pull [name]` | cloud | Fetch cloud document(s) into `.drawcms/`. |
-| `drawcms push [name]` | cloud | Validate + save local document(s) to the cloud. |
-| `drawcms status` | cloud | Show local edits and code-drift since last sync. |
-| `drawcms diff [name] [--against-cloud]` | cloud | Show code changes and, with `--against-cloud`, a node/edge delta vs the live cloud document. |
+| Command                                 | Mode        | Purpose                                                                                        |
+| --------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| `drawcms doctor`                        | both        | Check Node and the diagram engine.                                                             |
+| `drawcms build <type> <spec.json>`      | both        | Build + validate a spec offline.                                                               |
+| `drawcms local [<type>] <spec\|name>`   | self-hosted | Build for a self-hosted editor; write a loadable document + load hints (`--seed`, `--editor`). |
+| `drawcms edit <name> <ops.json>`        | both        | Apply incremental graph edits, preserving positions.                                           |
+| `drawcms recommend <entities.json>`     | both        | Suggest the closest element per entity.                                                        |
+| `drawcms grammar [id]`                  | both        | Query the visual grammar (elements, motion, relationships).                                    |
+| `drawcms login`                         | cloud       | Device-flow sign-in; stores a token.                                                           |
+| `drawcms init`                          | cloud       | Bind this repo to a DrawCMS project.                                                           |
+| `drawcms pull [name]`                   | cloud       | Fetch cloud document(s) into `.drawcms/`.                                                      |
+| `drawcms push [name]`                   | cloud       | Validate + save local document(s) to the cloud.                                                |
+| `drawcms status`                        | cloud       | Show local edits and code-drift since last sync.                                               |
+| `drawcms diff [name] [--against-cloud]` | cloud       | Show code changes and, with `--against-cloud`, a node/edge delta vs the live cloud document.   |
 
 The diagram types, authoring rules, visual grammar, and story/motion model are
 the same the [WebMCP tools](webmcp.md) use and the same the editor validates
