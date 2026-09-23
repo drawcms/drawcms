@@ -40,7 +40,10 @@ describe("diagram element library", () => {
     const user = userEvent.setup();
     const onAddNode = vi.fn();
     render(<SidebarLeft onAddNode={onAddNode} />);
-    await user.selectOptions(screen.getByRole("combobox", { name: "Diagram type" }), "activity");
+    // The diagram-type control is a popover picker, not a native <select>: open
+    // it, then choose the collection.
+    await user.click(screen.getByRole("button", { name: /^Diagram type:/ }));
+    await user.click(screen.getByRole("button", { name: "Choose Activity Diagram" }));
     const fork = screen.getByRole("button", { name: "Add Fork / Join to canvas" });
     fork.focus();
     await user.keyboard("{Enter}");
@@ -52,9 +55,10 @@ describe("diagram element library", () => {
       JSON.stringify({ type: "activity-fork", title: "" }),
     );
     await user.type(screen.getByRole("textbox", { name: "Search elements" }), "missing shape");
-    expect(screen.getByRole("status").textContent).toContain(
-      "No matching elements in Activity Diagram",
-    );
+    // The live region reports the count; the empty state names the active
+    // collection. They are separate elements — only the count is role="status".
+    expect(screen.getByRole("status").textContent).toContain("0 elements found");
+    expect(screen.getByText("No matching elements in Activity Diagram.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Show all elements" }));
     expect(screen.getByRole("button", { name: "Add Rectangle to canvas" })).toBeTruthy();
   });

@@ -175,7 +175,7 @@ export function ConfirmReplaceDialog({
           </DialogTitle>
           <DialogDescription>
             {cloudProject
-              ? "Importing a file replaces this canvas. Your saved version remains available in version history."
+              ? `${actionLabel} replaces this canvas. Your saved version remains available in version history.`
               : `${actionLabel} replaces the current diagram. Save a copy first if you need it.`}
           </DialogDescription>
         </DialogHeader>

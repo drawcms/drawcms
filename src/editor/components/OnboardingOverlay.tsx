@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { X, Film, LayoutTemplate, FolderOpen, FilePlus2, ChevronRight } from "lucide-react";
 import { TEMPLATES, GUIDED_TEMPLATE_ID } from "../document/templates";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
@@ -25,6 +25,19 @@ export function OnboardingOverlay({
   onBlank,
 }: OnboardingOverlayProps) {
   const [showTemplates, setShowTemplates] = useState(false);
+
+  /**
+   * Derived from the catalog, never hardcoded. This line used to read "Request
+   * flow, deployment, incident, or sequence diagram" — the original four — and
+   * stayed that way as the catalog grew to 18, so the guide advertised a fraction
+   * of what the grid below actually offered.
+   */
+  const templateSummary = useMemo(() => {
+    const names = TEMPLATES.map((template) => template.name);
+    if (names.length === 0) return "No templates are available.";
+    if (names.length <= 3) return `${names.join(", ")}.`;
+    return `${names.slice(0, 3).join(", ")}, and ${names.length - 3} more.`;
+  }, []);
 
   const choiceClass =
     "group flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors duration-100 hover:border-primary/30 hover:bg-accent";
@@ -82,9 +95,7 @@ export function OnboardingOverlay({
               </span>
               <span className="flex-1">
                 <span className="block font-medium text-foreground">Start from a template</span>
-                <span className="block text-sm text-muted-foreground">
-                  Request flow, deployment, incident, or sequence diagram.
-                </span>
+                <span className="block text-sm text-muted-foreground">{templateSummary}</span>
               </span>
               <ChevronRight size={16} className="text-muted-foreground group-hover:text-primary" />
             </button>
