@@ -16,6 +16,8 @@ export interface ShapeBackgroundProps {
   stroke?: string;
   strokeWidth?: string;
   borderRadius?: number;
+  width?: number;
+  height?: number;
   /**
    * Rendered node width / height. Shapes that embed a fixed-proportion sigil use
    * it to cancel the anisotropic stretch of the surrounding shape viewport.
@@ -45,6 +47,8 @@ export function ShapeBackground({
   stroke = "#4b5563",
   strokeWidth = "2",
   borderRadius,
+  width,
+  height,
   aspectRatio,
   onClick,
   onDoubleClick,
@@ -75,8 +79,8 @@ export function ShapeBackground({
           <rect
             width="100"
             height="100"
-            rx="15"
-            ry="30"
+            rx={borderRadius === undefined ? 15 : (borderRadius * 104) / (width || 104)}
+            ry={borderRadius === undefined ? 30 : (borderRadius * 104) / (height || 104)}
             fill={fill}
             stroke={stroke}
             strokeWidth={strokeWidth}

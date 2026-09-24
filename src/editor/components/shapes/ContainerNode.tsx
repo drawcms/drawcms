@@ -30,14 +30,14 @@ export function ContainerNode({
     isStoryStepPlaying,
   } = useAnimationState();
 
-  const label: string = data?.label || "Group";
+  const label: string = data?.label ?? "Group";
   const shapeType: string = data?.type || "group";
   const isSemanticContainer = SEMANTIC_CONTAINER_TYPES.has(shapeType);
   const isSequenceNode = SEQUENCE_NODE_TYPES.has(shapeType);
   const isSemanticBoundary = shapeType.startsWith("boundary-");
   const fillColor = (data?.fillColor as string) || "#ffffff";
   const strokeColor = (data?.strokeColor as string) || "#666666";
-  const strokeWidth = String(data?.strokeWidth || 1);
+  const strokeWidth = String(data?.strokeWidth ?? 1);
   const opacity = (data?.opacity as number) ?? 1;
   const fontSize = (data?.fontSize as number) || 12;
   const textColor = (data?.textColor as string) || "#1f2937";
@@ -150,7 +150,7 @@ export function ContainerNode({
         )}
 
         {/* Label — group uses a draw.io-style tab at top-left; others use plain text */}
-        {shapeType === "group" ? (
+        {label === "" ? null : shapeType === "group" ? (
           <div
             className="absolute z-10 left-0 min-w-28 max-w-[70%] px-2 py-1 font-semibold"
             style={{

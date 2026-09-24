@@ -9,6 +9,7 @@ import {
   DiagramCanvas,
 } from "./DiagramCanvas";
 import { installReactFlowJsdomShims } from "../test/react-flow-jsdom";
+import { AnimationStateContext } from "../contexts";
 
 beforeAll(() => {
   installReactFlowJsdomShims();
@@ -17,6 +18,42 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe("DiagramCanvas icon nodes", () => {
+  it("keeps a white-on-navy badge readable when a story highlights its fill", () => {
+    render(
+      <ReactFlowProvider>
+        <AnimationStateContext.Provider
+          value={{
+            isGlobalAnimating: false,
+            isPreviewingSelected: false,
+            selectedNodeId: null,
+            activeStoryNodeIds: ["badge"],
+            activeStoryEdgeIds: [],
+            isStoryStepPlaying: false,
+            prefersReducedMotion: false,
+          }}
+        >
+          <DiagramCanvas
+            nodes={[
+              {
+                id: "badge",
+                position: { x: 0, y: 0 },
+                type: "customShape",
+                data: { type: "circle", label: "2", fillColor: "#071B4C", textColor: "#FFFFFF" },
+              },
+            ]}
+            edges={[]}
+            onNodesChange={() => {}}
+            onEdgesChange={() => {}}
+            onConnect={() => {}}
+            setSelectedNodeId={() => {}}
+            setSelectedEdgeId={() => {}}
+          />
+        </AnimationStateContext.Provider>
+      </ReactFlowProvider>,
+    );
+    expect(screen.getByText("2").style.color).toBe("rgb(194, 65, 12)");
+  });
+
   it("renders self-contained icon artwork without a visible label", () => {
     render(
       <ReactFlowProvider>

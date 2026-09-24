@@ -729,7 +729,7 @@ describe("DrawCMS WebMCP tools", () => {
 
     const dispose = registerDrawCMSWebMCPTools(modelContext, target.value);
 
-    expect(modelContext.registerTool).toHaveBeenCalledTimes(9);
+    expect(modelContext.registerTool).toHaveBeenCalledTimes(10);
     expect(new Set(signals)).toHaveLength(1);
     expect(signals[0].aborted).toBe(false);
     dispose();

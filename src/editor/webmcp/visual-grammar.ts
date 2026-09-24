@@ -1,4 +1,4 @@
-import { nodeBox } from "./routing";
+import { absoluteNodeBox, nodeBox } from "./routing";
 import { SHAPE_CATEGORIES } from "../components/shapes/catalog";
 import { SEMANTIC_CONTAINER_TYPES } from "../components/shapes/semantic-elements";
 import type { DrawCMSDocument } from "../document/schema";
@@ -430,11 +430,11 @@ function buildElementGrammar(): VisualElementGrammar[] {
     title: "Icon",
     categoryId: "icons",
     categoryTitle: "Icons",
-    kind: "dynamic",
+    kind: "node",
     ...CATEGORY_DEFAULTS.icons,
     keywords: ["iconify", "symbol", "pictogram"],
     defaultLabel: "",
-    buildSupport: "requires-asset",
+    buildSupport: "full",
   });
   return entries;
 }
@@ -1468,7 +1468,7 @@ export function validateDiagramVisualGrammar(
         changed.some(([id, bounds]) => {
           const node = document.nodes.find((candidate) => candidate.id === id);
           if (!node || !bounds) return false;
-          const box = nodeBox(node);
+          const box = absoluteNodeBox(node, document.nodes);
           return (
             box.x !== bounds.x ||
             box.y !== bounds.y ||

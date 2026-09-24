@@ -45,6 +45,7 @@ origin isolation with `Origin-Agent-Cluster: ?0`.
 | Tool                         | Effect                                                                                                                                                                  |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `drawcms_get_diagram`        | Reads the complete current DrawCMS document. Read-only.                                                                                                                 |
+| `drawcms_search_icons`       | Searches Iconify for exact icon names, collections, and license metadata. Sends only the search query; never uploads the diagram. Read-only.                            |
 | `drawcms_get_visual_grammar` | Queries the complete element, motion, and relationship dictionary by category, diagram type, id, or free-text intent. Read-only.                                        |
 | `drawcms_recommend_visuals`  | Maps semantic entities and relationships to suitable elements, connector types, motion, loop behavior, and playback order. Read-only.                                   |
 | `drawcms_validate_diagram`   | Reviews the current diagram for unregistered elements, shape-purpose mismatches, unsuitable motion, sequence geometry problems, overlap, and narration gaps.            |
@@ -59,9 +60,10 @@ origin isolation with `Origin-Agent-Cluster: ?0`.
 The registry covers every element in the DrawCMS palette, including native
 sequence notation, architecture and data-flow semantics, lifecycle states,
 annotations, UML, BPMN, ER, containers, AWS, Google Cloud, Azure, and generic
-infrastructure symbols. The dynamic Iconify and image elements are also
-registered, but require an asset-selection workflow rather than plain diagram
-replacement.
+infrastructure symbols. Iconify icons can be searched with `drawcms_search_icons`
+and built as `type: "icon"` with an `iconName`. The editor downloads, sanitizes,
+and embeds the SVG before applying the change. Image elements still require
+their separate asset-selection workflow.
 
 Every registry entry describes:
 
@@ -96,11 +98,112 @@ that has one. Whole-word matching is what keeps "Build pipeline" from reading as
 a front end.
 
 `drawcms_replace_diagram` and `drawcms_edit_diagram` accept every asset-free
-node element in the registry, supply required defaults for tables, UML
+node element plus named Iconify icons, supply required defaults for tables, UML
 classes, ER entities, containers, swimlanes, and semantic shapes, and accept
 native sequence connector types. Nodes support Bounce, Spin, Pulse Node, and
 Shake. Connectors support Pulse, Data Flow, Sequence Flow, Sequential Glow,
 Fade Path, and Orbit.
+
+## Reference layouts, icons, and real groups
+
+Use `drawcms_search_icons({ query: "shield check", prefix: "lucide", limit: 12 })` before placing
+a pictogram. Results contain `iconName`, `prefix`, `name`, `setTitle`,
+`licenseTitle`, and `licenseSpdx`. Pick a consistent family and pass its exact
+identifier to an icon node. `iconColor` controls monochrome artwork using
+`currentColor`; multi-color artwork retains its own colors. Raw SVG and arbitrary
+asset URLs are not accepted as authoring inputs. A download failure or
+cancellation leaves the diagram unchanged. If the diagram changes while
+artwork is downloading, the tool rejects the stale operation so the agent can
+read and retry against the latest state.
+
+Compose a reference card using a background shape as the parent of an icon,
+title, caption, and badge. `parentId` is actual React Flow membership, not a
+visual overlap: moving the parent moves every nested child. Child `position`
+is explicitly **relative to the parent's top-left**. Parents can be ordinary
+shapes or grouping frames. Missing parents and cycles are rejected. Replacement
+accepts any node order; an incremental batch must add a parent before its children.
+
+```json
+{
+  "name": "Identity and access",
+  "diagramType": "architecture",
+  "nodes": [
+    {
+      "id": "access",
+      "type": "round-rect",
+      "label": "",
+      "position": { "x": 320, "y": 160 },
+      "width": 460,
+      "height": 108,
+      "fillColor": "#FFF5DA",
+      "strokeColor": "#D8C27A",
+      "borderRadius": 12
+    },
+    {
+      "id": "shield",
+      "type": "icon",
+      "iconName": "lucide:shield-check",
+      "iconColor": "#071B4C",
+      "label": "",
+      "parentId": "access",
+      "position": { "x": 26, "y": 26 },
+      "width": 56,
+      "height": 56
+    },
+    {
+      "id": "title",
+      "type": "text",
+      "label": "Identity & Access",
+      "parentId": "access",
+      "position": { "x": 108, "y": 22 },
+      "width": 330,
+      "height": 36,
+      "fontSize": 28,
+      "fontWeight": "700",
+      "textAlign": "left",
+      "textColor": "#071B4C"
+    },
+    {
+      "id": "caption",
+      "type": "text",
+      "label": "authenticate • authorize • scope",
+      "parentId": "access",
+      "position": { "x": 108, "y": 65 },
+      "width": 330,
+      "height": 24,
+      "fontSize": 18,
+      "fontWeight": "400",
+      "textAlign": "left"
+    }
+  ],
+  "beats": [{ "title": "Establish authority", "nodeIds": ["access"] }]
+}
+```
+
+All node creation and update paths expose `fontSize`, `fontWeight`, `fontFamily`,
+`fontStyle`, `textDecoration`, `textAlign`, `lineHeight`, `textAutoResize`,
+`strokeWidth`, `opacity`, `borderRadius`, `headerColor`, and `zIndex` alongside
+the existing colors. Text-specific fields apply to text elements; structured
+elements keep their own layout. Explicit text sizes default `textAutoResize`
+to false. Rounded rectangle `borderRadius` uses canvas pixels. Empty group
+labels hide the default tab, allowing a custom child heading.
+
+`updateNode` also accepts `width`, `height`, and `parentId`. Reparenting without
+`position` preserves the element's absolute location. With `position`, the
+coordinates are relative to the new parent. Set `parentId: null` to detach a
+child. Changes are applied as one undoable batch. Deleting a parent cascades to
+its descendants and their edges; detach children first to keep them.
+
+Connectors use absolute coordinates for nested endpoints and can pass through
+their enclosing frames. Tidy operates on root compositions without rearranging
+their children; use `scope: "connectors"` to preserve an intentional reference
+layout. Story steps targeting a parent highlight all descendants, including
+its icons and captions. Explicit connector targets still limit the step to
+exactly those connectors.
+
+Check the rendered canvas against the reference as well as running semantic
+validation. Icons, typography, alignment, line wrapping, and connector paths
+determine fidelity; a successful build receipt alone does not.
 
 ## Loop behavior
 

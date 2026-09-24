@@ -13,6 +13,21 @@ function nodes(...ids: string[]): StoryTarget[] {
 }
 
 describe("resolveStoryTargets", () => {
+  it("highlights a whole nested composition while preserving explicit edge selection", () => {
+    const result = resolveStoryTargets(
+      [...nodes("card"), { targetId: "edge-ab", targetKind: "edge" }],
+      edges,
+      [
+        { id: "caption", parentId: "inner" },
+        { id: "inner", parentId: "card" },
+        { id: "icon", parentId: "card" },
+        { id: "unrelated" },
+        { id: "card" },
+      ],
+    );
+    expect(new Set(result.nodeIds)).toEqual(new Set(["card", "inner", "caption", "icon"]));
+    expect(result.edgeIds).toEqual(["edge-ab"]);
+  });
   it("derives direct connectors between selected step nodes", () => {
     expect(resolveStoryTargets(nodes("node-a", "node-b", "node-c"), edges)).toEqual({
       nodeIds: ["node-a", "node-b", "node-c"],

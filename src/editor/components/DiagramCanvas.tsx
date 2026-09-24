@@ -165,7 +165,7 @@ const CustomShapeNode = ({
   // Style props with defaults
   const fillColor = (data?.fillColor as string) || "white";
   const strokeColor = (data?.strokeColor as string) || "#4b5563";
-  const strokeWidth = String(data?.strokeWidth || 1);
+  const strokeWidth = String(data?.strokeWidth ?? 1);
   const storyFillColor =
     isStoryTarget && fillColor !== "transparent" && fillColor !== "none"
       ? STORY_ACTIVE_FILL
@@ -249,7 +249,9 @@ const CustomShapeNode = ({
       ? THEME_INK
       : textColor;
   const storyTextColor =
-    isStoryTarget && data.type === "text" ? STORY_ACTIVE_TEXT : canvasLabelTextColor;
+    isStoryTarget && (data.type === "text" || (!isTextBelow && storyFillColor !== fillColor))
+      ? STORY_ACTIVE_TEXT
+      : canvasLabelTextColor;
 
   // Text-below symbols preserve their artwork aspect ratio inside a wider resize
   // frame. Measure the painted SVG bounds so connectors meet the visible symbol
@@ -749,6 +751,9 @@ const CustomShapeNode = ({
               stroke={storyStrokeColor}
               strokeWidth={strokeWidth}
               aspectRatio={shapeAspectRatio}
+              borderRadius={data.borderRadius}
+              width={width}
+              height={height}
             />
           </svg>
         )}

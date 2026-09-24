@@ -26,6 +26,7 @@ export interface ResolvedStoryTargets {
 export function resolveStoryTargets(
   targets: readonly StoryTarget[],
   edges: readonly StoryFlowEdge[],
+  nodes: readonly { id: string; parentId?: string }[] = [],
 ): ResolvedStoryTargets {
   const nodeIds: string[] = [];
   const edgeIds: string[] = [];
@@ -43,6 +44,18 @@ export function resolveStoryTargets(
     if (edgeIdSet.has(target.targetId)) continue;
     edgeIdSet.add(target.targetId);
     edgeIds.push(target.targetId);
+  }
+
+  // A card/group is one narrative unit, including nested icons and labels.
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const node of nodes) {
+      if (!node.parentId || !nodeIdSet.has(node.parentId) || nodeIdSet.has(node.id)) continue;
+      nodeIdSet.add(node.id);
+      nodeIds.push(node.id);
+      expanded = true;
+    }
   }
 
   if (edgeIdSet.size > 0 || nodeIdSet.size < 2) return { nodeIds, edgeIds };

@@ -2,6 +2,7 @@ import type { Connection } from "@xyflow/react";
 import type { AppEdge, AppNode } from "../types";
 import { ALL_CONTAINER_TYPES } from "../constants";
 import { generateId } from "../lib/id";
+import { orderNodesByParent } from "../node-hierarchy";
 import {
   createPaste,
   deleteEdgeFromSnapshot,
@@ -120,6 +121,8 @@ export type GraphEditOperation =
       dataPatch?: Record<string, unknown>;
       stylePatch?: Record<string, unknown>;
       position?: { x: number; y: number };
+      parentId?: string | null;
+      zIndex?: number;
     }
   | { op: "deleteNode"; nodeId: string }
   | { op: "addEdge"; edge: AppEdge }
@@ -130,7 +133,7 @@ export function applyGraphEditOperations(
   snapshot: EditorSnapshot,
   operations: GraphEditOperation[],
 ): EditorSnapshot {
-  return operations.reduce((current, operation) => {
+  const result = operations.reduce((current, operation) => {
     switch (operation.op) {
       case "addNode":
         return addNodeCommand(operation.node).apply(current);
@@ -140,9 +143,24 @@ export function applyGraphEditOperations(
           operation.dataPatch ?? {},
           operation.stylePatch,
         ).apply(current);
-        return operation.position
+        const positioned = operation.position
           ? updateNodePositionCommand(operation.nodeId, operation.position).apply(withData)
           : withData;
+        if (operation.parentId === undefined && operation.zIndex === undefined) return positioned;
+        return {
+          ...positioned,
+          nodes: positioned.nodes.map((node) =>
+            node.id === operation.nodeId
+              ? {
+                  ...node,
+                  ...(operation.parentId !== undefined
+                    ? { parentId: operation.parentId ?? undefined }
+                    : {}),
+                  ...(operation.zIndex !== undefined ? { zIndex: operation.zIndex } : {}),
+                }
+              : node,
+          ),
+        };
       }
       case "deleteNode":
         return deleteNodesFromSnapshot(current, [operation.nodeId]);
@@ -159,6 +177,7 @@ export function applyGraphEditOperations(
         return current;
     }
   }, snapshot);
+  return { ...result, nodes: orderNodesByParent(result.nodes) };
 }
 
 export function updateEdgeDataCommand(

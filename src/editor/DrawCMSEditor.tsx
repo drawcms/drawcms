@@ -975,8 +975,8 @@ export function DrawCMSEditor({
   const selection = { nodeId: state.selectedNodeId, edgeId: state.selectedEdgeId };
   const isPresentation = variant === "presentation";
   const resolvedPresentationTargets = useMemo(
-    () => resolveStoryTargets(presentationPlayback.targets, state.edges),
-    [presentationPlayback.targets, state.edges],
+    () => resolveStoryTargets(presentationPlayback.targets, state.edges, state.nodes),
+    [presentationPlayback.targets, state.edges, state.nodes],
   );
   const activePresentationTargets = useMemo<StoryTarget[]>(
     () => [

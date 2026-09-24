@@ -12,6 +12,14 @@ import {
   nodeZIndex,
 } from "../node-factory";
 import type { DrawCMSDocument } from "../document/schema";
+import { fetchIconArtwork, searchIcons, IconifyError, type IconArtwork } from "../io/iconify";
+import {
+  absoluteNodePosition,
+  NodeHierarchyError,
+  orderNodesByParent,
+  rootNodeId,
+} from "../node-hierarchy";
+import { selectCascadeNodeIds } from "../commands/operations";
 import {
   createSequenceEdge,
   nextSequenceRow,
@@ -171,9 +179,129 @@ const CARDINALITIES = ["0..1", "1", "0..*", "1..*"] as const;
 
 const cardinalitySchema = z.enum(CARDINALITIES);
 
+const compositionFields = {
+  parentId: idSchema.optional(),
+  iconName: z
+    .string()
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .optional(),
+  iconColor: z.string().max(100).optional(),
+  fontSize: z.number().min(8).max(96).optional(),
+  fontWeight: z.enum(["400", "500", "600", "700", "800", "900"]).optional(),
+  fontFamily: z.enum(["sans", "hand", "mono"]).optional(),
+  fontStyle: z.enum(["normal", "italic"]).optional(),
+  textDecoration: z.enum(["none", "underline"]).optional(),
+  textAlign: z.enum(["left", "center", "right"]).optional(),
+  lineHeight: z.number().min(1).max(2).optional(),
+  textAutoResize: z.boolean().optional(),
+  strokeWidth: z.number().min(0).max(20).optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  borderRadius: z.number().min(0).max(200).optional(),
+  headerColor: z.string().max(100).optional(),
+  zIndex: z.number().int().min(-100).max(100).optional(),
+};
+
+const compositionJsonProperties = {
+  parentId: {
+    type: "string",
+    description:
+      "Real parent node (group, frame, or card). Child position is relative to its parent, and must be explicit. Nested compositions move together; connect edges and story steps to the parent card.",
+  },
+  iconName: {
+    type: "string",
+    description:
+      "For type icon: exact Iconify name from drawcms_search_icons, e.g. lucide:shield-check. Artwork is fetched and sanitized before saving. No raw SVG or arbitrary URLs.",
+  },
+  iconColor: {
+    type: "string",
+    description:
+      "Color of monochrome Iconify artwork (currentColor). Multicolor logos keep their authored colors.",
+  },
+  fontSize: { type: "number", minimum: 8, maximum: 96 },
+  fontWeight: { type: "string", enum: ["400", "500", "600", "700", "800", "900"] },
+  fontFamily: { type: "string", enum: ["sans", "hand", "mono"] },
+  fontStyle: { type: "string", enum: ["normal", "italic"] },
+  textDecoration: { type: "string", enum: ["none", "underline"] },
+  textAlign: { type: "string", enum: ["left", "center", "right"] },
+  lineHeight: { type: "number", minimum: 1, maximum: 2 },
+  textAutoResize: {
+    type: "boolean",
+    description:
+      "Standalone text only. Defaults to false when an explicit size is supplied, preserving reference typography and bounds.",
+  },
+  strokeWidth: { type: "number", minimum: 0, maximum: 20 },
+  opacity: { type: "number", minimum: 0, maximum: 1 },
+  borderRadius: { type: "number", minimum: 0, maximum: 200 },
+  headerColor: { type: "string" },
+  zIndex: {
+    type: "integer",
+    minimum: -100,
+    maximum: 100,
+    description: "Optional stacking order, useful for badges and layered compositions.",
+  },
+};
+
+function authoredNodeData(node: Partial<Omit<z.infer<typeof nodeInputSchema>, "motion">>) {
+  const data: Record<string, unknown> = {};
+  for (const key of Object.keys(compositionFields) as Array<keyof typeof compositionFields>) {
+    if (key === "parentId" || key === "zIndex") continue;
+    if (node[key] !== undefined) data[key] = node[key];
+  }
+  if (node.type === "text" && (node.width !== undefined || node.height !== undefined)) {
+    data.textAutoResize = node.textAutoResize ?? false;
+  }
+  return data;
+}
+
+function assertComposition(node: {
+  id: string;
+  type?: string;
+  iconName?: string;
+  parentId?: string | null;
+  position?: unknown;
+}) {
+  if (node.type === "icon" && !node.iconName)
+    throw new WebMCPDiagramInputError(
+      `Icon ${node.id} requires iconName from drawcms_search_icons.`,
+    );
+  if (node.iconName && node.type !== "icon")
+    throw new WebMCPDiagramInputError(`iconName is only valid on an icon node (${node.id}).`);
+  if (node.parentId && !node.position)
+    throw new WebMCPDiagramInputError(
+      `Child ${node.id} requires an explicit parent-relative position.`,
+    );
+}
+
+function iconNodeData(iconName: string | undefined, icons: ReadonlyMap<string, IconArtwork>) {
+  if (!iconName) return {};
+  const artwork = icons.get(iconName);
+  if (!artwork)
+    throw new WebMCPDiagramInputError(
+      `Icon ${iconName} needs resolved artwork. Use the live WebMCP builder to fetch it.`,
+    );
+  return { iconName, iconBody: artwork.body, iconViewBox: artwork.viewBox };
+}
+
+async function resolveIcons(names: Array<string | undefined>, signal?: AbortSignal) {
+  const icons = new Map<string, IconArtwork>();
+  const unique = [...new Set(names.filter((name): name is string => Boolean(name)))];
+  // Deduplicate per operation and bound parallel requests for large compositions.
+  for (let index = 0; index < unique.length; index += 6) {
+    signal?.throwIfAborted();
+    const batch = await Promise.all(
+      unique.slice(index, index + 6).map((name) => fetchIconArtwork(name, { signal })),
+    );
+    for (const artwork of batch) icons.set(artwork.icon, artwork);
+  }
+  signal?.throwIfAborted();
+  return icons;
+}
+
 const nodeInputSchema = z
   .object({
     id: idSchema,
+    ...compositionFields,
     label: z.string().max(240),
     type: z.enum(WEBMCP_NODE_TYPES).default("round-rect"),
     position: z.object({ x: z.number().finite(), y: z.number().finite() }).strict().optional(),
@@ -257,6 +385,7 @@ const replaceDiagramJsonSchema: JsonSchema = {
             type: "string",
             description: "Stable short identifier used by edge source and target fields.",
           },
+          ...compositionJsonProperties,
           label: { type: "string", description: "Visible text on the element." },
           type: {
             type: "string",
@@ -668,6 +797,7 @@ const setStoryInputSchema = z
 const editNodeSchema = z
   .object({
     op: z.literal("addNode"),
+    ...compositionFields,
     id: idSchema,
     label: z.string().max(240),
     type: z.enum(WEBMCP_NODE_TYPES).default("round-rect"),
@@ -691,6 +821,10 @@ const editNodeSchema = z
 const updateNodeSchema = z
   .object({
     op: z.literal("updateNode"),
+    ...compositionFields,
+    parentId: idSchema.nullable().optional(),
+    width: z.number().positive().max(2_000).optional(),
+    height: z.number().positive().max(2_000).optional(),
     nodeId: idSchema,
     label: z.string().max(240).optional(),
     position: z.object({ x: z.number().finite(), y: z.number().finite() }).strict().optional(),
@@ -800,6 +934,12 @@ const editDiagramJsonSchema: JsonSchema = {
             type: "string",
             enum: ["addNode", "updateNode", "deleteNode", "addEdge", "updateEdge", "deleteEdge"],
           },
+          ...compositionJsonProperties,
+          parentId: {
+            type: ["string", "null"],
+            description:
+              "Group/reparent under an existing node; null detaches. On update, omitting position preserves absolute canvas location; an explicit position is relative to the NEW parent. Children move when their parent moves.",
+          },
           id: { type: "string", description: "addNode: new node id." },
           nodeId: { type: "string", description: "updateNode/deleteNode: existing node id." },
           label: { type: "string", description: "Visible text on the element." },
@@ -812,8 +952,8 @@ const editDiagramJsonSchema: JsonSchema = {
             description: "Canvas position. addNode defaults to an open area if omitted.",
             properties: { x: { type: "number" }, y: { type: "number" } },
           },
-          width: { type: "number", description: "addNode: optional width in canvas pixels." },
-          height: { type: "number", description: "addNode: optional height in canvas pixels." },
+          width: { type: "number", description: "addNode/updateNode: width in canvas pixels." },
+          height: { type: "number", description: "addNode/updateNode: height in canvas pixels." },
           rows: {
             type: "array",
             description:
@@ -976,7 +1116,20 @@ class WebMCPDiagramInputError extends Error {
 }
 
 function toErrorResult(error: unknown) {
-  if (error instanceof z.ZodError || error instanceof WebMCPDiagramInputError) {
+  if (error instanceof IconifyError)
+    return {
+      ok: false as const,
+      error: {
+        code: "ICON_SERVICE_FAILED",
+        message: error.message,
+        recoveryHint: error.recoveryHint,
+      },
+    };
+  if (
+    error instanceof z.ZodError ||
+    error instanceof WebMCPDiagramInputError ||
+    error instanceof NodeHierarchyError
+  ) {
     return {
       ok: false as const,
       error: {
@@ -1404,10 +1557,15 @@ function structuredNodeData(
   };
 }
 
-export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
+export function createDocumentFromWebMCP(
+  input: unknown,
+  icons: ReadonlyMap<string, IconArtwork> = new Map(),
+): DrawCMSDocument {
   const parsed = replaceDiagramInputSchema.parse(input);
+  orderNodesByParent(parsed.nodes);
   const ids = new Set<string>();
   for (const node of parsed.nodes) {
+    assertComposition(node);
     if (ids.has(node.id)) throw new WebMCPDiagramInputError(`Duplicate node id: ${node.id}`);
     ids.add(node.id);
   }
@@ -1422,14 +1580,19 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
   const edgeBeatKinds = beatKindsByEdgeId(parsed.beats);
   const layoutNodeInputs: LayoutNode[] = parsed.nodes.map(estimateLayoutNode);
   const layoutEdgeInputs: LayoutEdge[] = parsed.edges.map((edge) => ({
-    source: edge.source,
-    target: edge.target,
+    source: rootNodeId(edge.source, parsed.nodes),
+    target: rootNodeId(edge.target, parsed.nodes),
   }));
   // Automatic layout only ever fills in positions the agent omitted; an
   // explicit position always wins outright.
-  const needsLayout = parsed.nodes.some((node) => !node.position);
+  const needsLayout = parsed.nodes.some((node) => !node.position && !node.parentId);
   const computedPositions = needsLayout
-    ? layoutNodesWithDirection(diagramType, layoutNodeInputs, layoutEdgeInputs, parsed.direction)
+    ? layoutNodesWithDirection(
+        diagramType,
+        layoutNodeInputs.filter((_, index) => !parsed.nodes[index].parentId),
+        layoutEdgeInputs.filter((edge) => edge.source !== edge.target),
+        parsed.direction,
+      )
     : null;
 
   const nodes: AppNode[] = parsed.nodes.map((node, index) => {
@@ -1439,6 +1602,8 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
     const data: AppNode["data"] = {
       ...defaultNodeData(node.type, node.label, { placeholderContent: false }),
       ...structuredNodeData(node, layoutNodeInputs[index].height),
+      ...authoredNodeData(node),
+      ...iconNodeData(node.iconName, icons),
       ...(node.fillColor ? { fillColor: node.fillColor } : {}),
       ...(node.strokeColor ? { strokeColor: node.strokeColor } : {}),
       ...(node.textColor ? { textColor: node.textColor } : {}),
@@ -1462,15 +1627,19 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
       data,
       type: nodeRendererType(node.type),
       style,
+      ...(node.parentId ? { parentId: node.parentId } : {}),
       ...(nodeZIndex(node.type) !== undefined ? { zIndex: nodeZIndex(node.type) } : {}),
+      ...(node.zIndex !== undefined ? { zIndex: node.zIndex } : {}),
     };
   });
 
   // Explicit coordinates are anchors; move only omitted coordinates to open space.
   if (diagramType !== "sequence") {
-    const placed = nodes.filter((_, index) => parsed.nodes[index].position).map(nodeBox);
+    const placed = nodes
+      .filter((node, index) => !node.parentId && parsed.nodes[index].position)
+      .map(nodeBox);
     nodes.forEach((node, index) => {
-      if (parsed.nodes[index].position) return;
+      if (node.parentId || parsed.nodes[index].position) return;
       const box = placeInOpenArea(nodeBox(node), placed, nodes.length);
       node.position = { x: box.x, y: box.y };
       placed.push(box);
@@ -1591,7 +1760,10 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
     });
     const routingMode =
       edge.routing ?? (diagramType === "general" ? (derivedRouting ?? "curve") : "elbow");
-    const handles = defaultEdgeHandles(source, target);
+    const handles = defaultEdgeHandles(
+      { position: absoluteNodePosition(source, nodes) },
+      { position: absoluteNodePosition(target, nodes) },
+    );
     return {
       id,
       source: edge.source,
@@ -1632,7 +1804,7 @@ export function createDocumentFromWebMCP(input: unknown): DrawCMSDocument {
       : createEmptyStory();
 
   return createDocument({
-    nodes,
+    nodes: orderNodesByParent(nodes),
     edges,
     meta: { name: parsed.name, diagramType },
     motion: { story },
@@ -1669,6 +1841,7 @@ function resolvePatchedMotionLoop(motion: {
 function resolveGraphEditOperations(
   operations: EditOperationInput[],
   document: DrawCMSDocument,
+  icons: ReadonlyMap<string, IconArtwork> = new Map(),
 ): GraphEditOperation[] {
   const nodeIds = new Set(document.nodes.map((node) => node.id));
   const edgeIds = new Set(document.edges.map((edge) => edge.id));
@@ -1682,7 +1855,6 @@ function resolveGraphEditOperations(
   const structural = STRUCTURAL_NOTATION_DIAGRAM_TYPES.has(diagramType);
   // Every box a new node has to avoid. Nodes added earlier in this batch are
   // appended as they are placed so two additions cannot land on each other.
-  const occupied = document.nodes.map((node) => nodeBox(node as AppNode));
   // Edges created here still need obstacle-aware geometry, and edges whose
   // endpoint moved have geometry that no longer describes the diagram.
   const addedEdges: AppEdge[] = [];
@@ -1697,15 +1869,20 @@ function resolveGraphEditOperations(
   const resolved = operations.map((operation): GraphEditOperation => {
     switch (operation.op) {
       case "addNode": {
+        const occupied = [...nodesById.values()].filter((node) => !node.parentId).map(nodeBox);
         if (nodeIds.has(operation.id)) {
           throw new WebMCPDiagramInputError(`Duplicate node id: ${operation.id}`);
         }
         nodeIds.add(operation.id);
         assertStructuredFields(operation);
+        assertComposition(operation);
+        if (operation.parentId) requireNode(operation.parentId);
         const layout = estimateLayoutNode(operation);
         const data: AppNode["data"] = {
           ...defaultNodeData(operation.type, operation.label, { placeholderContent: false }),
           ...structuredNodeData(operation, layout.height),
+          ...authoredNodeData(operation),
+          ...iconNodeData(operation.iconName, icons),
           ...(operation.fillColor ? { fillColor: operation.fillColor } : {}),
           ...(operation.strokeColor ? { strokeColor: operation.strokeColor } : {}),
           ...(operation.textColor ? { textColor: operation.textColor } : {}),
@@ -1728,23 +1905,32 @@ function resolveGraphEditOperations(
               occupied,
               occupied.length,
             );
-        occupied.push(box);
         const node: AppNode = {
           id: operation.id,
           position: { x: box.x, y: box.y },
           data,
           type: nodeRendererType(operation.type),
           style,
+          ...(operation.parentId ? { parentId: operation.parentId } : {}),
           ...(nodeZIndex(operation.type) !== undefined
             ? { zIndex: nodeZIndex(operation.type) }
             : {}),
+          ...(operation.zIndex !== undefined ? { zIndex: operation.zIndex } : {}),
         };
         nodesById.set(operation.id, node);
         return { op: "addNode", node };
       }
       case "updateNode": {
-        requireNode(operation.nodeId);
-        const dataPatch: Record<string, unknown> = {};
+        const existing = requireNode(operation.nodeId);
+        if (operation.iconName && existing.data.type !== "icon")
+          throw new WebMCPDiagramInputError(
+            `iconName is only valid on an icon node (${existing.id}).`,
+          );
+        const { parentId, ...appearance } = operation;
+        const dataPatch: Record<string, unknown> = {
+          ...authoredNodeData({ ...appearance, type: existing.data.type }),
+          ...iconNodeData(operation.iconName, icons),
+        };
         if (operation.label !== undefined) dataPatch.label = operation.label;
         if (operation.fillColor !== undefined) dataPatch.fillColor = operation.fillColor;
         if (operation.strokeColor !== undefined) dataPatch.strokeColor = operation.strokeColor;
@@ -1756,18 +1942,57 @@ function resolveGraphEditOperations(
           if (operation.motion.speed !== undefined) dataPatch.motionSpeed = operation.motion.speed;
           Object.assign(dataPatch, resolvePatchedMotionLoop(operation.motion));
         }
-        if (operation.position) movedNodeIds.add(operation.nodeId);
+        let position = operation.position;
+        if (parentId !== undefined && !position) {
+          const absolute = absoluteNodePosition(existing, [...nodesById.values()]);
+          const parent = parentId
+            ? absoluteNodePosition(requireNode(parentId), [...nodesById.values()])
+            : { x: 0, y: 0 };
+          position = { x: absolute.x - parent.x, y: absolute.y - parent.y };
+        }
+        if (parentId) requireNode(parentId);
+        const stylePatch = {
+          ...(operation.width !== undefined ? { width: operation.width } : {}),
+          ...(operation.height !== undefined ? { height: operation.height } : {}),
+        };
+        if (
+          position ||
+          parentId !== undefined ||
+          operation.width !== undefined ||
+          operation.height !== undefined
+        ) {
+          for (const id of selectCascadeNodeIds([...nodesById.values()], new Set([existing.id])))
+            movedNodeIds.add(id);
+        }
+        nodesById.set(existing.id, {
+          ...existing,
+          data: { ...existing.data, ...dataPatch },
+          style: { ...existing.style, ...stylePatch },
+          ...(position ? { position } : {}),
+          ...(parentId !== undefined ? { parentId: parentId ?? undefined } : {}),
+          ...(operation.zIndex !== undefined ? { zIndex: operation.zIndex } : {}),
+        });
+        orderNodesByParent([...nodesById.values()]);
         return {
           op: "updateNode",
           nodeId: operation.nodeId,
           dataPatch,
-          ...(operation.position ? { position: operation.position } : {}),
+          stylePatch,
+          ...(position ? { position } : {}),
+          ...(parentId !== undefined ? { parentId } : {}),
+          ...(operation.zIndex !== undefined ? { zIndex: operation.zIndex } : {}),
         };
       }
       case "deleteNode": {
         requireNode(operation.nodeId);
-        nodeIds.delete(operation.nodeId);
-        nodesById.delete(operation.nodeId);
+        const removed = selectCascadeNodeIds([...nodesById.values()], new Set([operation.nodeId]));
+        for (const id of removed) {
+          nodeIds.delete(id);
+          nodesById.delete(id);
+        }
+        for (const edge of [...document.edges, ...addedEdges]) {
+          if (removed.has(edge.source) || removed.has(edge.target)) edgeIds.delete(edge.id);
+        }
         return { op: "deleteNode", nodeId: operation.nodeId };
       }
       case "addEdge": {
@@ -1822,7 +2047,10 @@ function resolveGraphEditOperations(
           notation: operation.notation ?? (structural ? "association" : "directed"),
         });
         const routingMode = operation.routing ?? (diagramType === "general" ? "curve" : "elbow");
-        const handles = defaultEdgeHandles(source, target);
+        const handles = defaultEdgeHandles(
+          { position: absoluteNodePosition(source, [...nodesById.values()]) },
+          { position: absoluteNodePosition(target, [...nodesById.values()]) },
+        );
         const edge: AppEdge = {
           id,
           source: operation.source,
@@ -1960,28 +2188,35 @@ function resolveTidyOperations(
   // would scramble a correct diagram. Report that rather than pretending.
   const relaidOut = diagramType !== "sequence" && options.scope !== "connectors";
   if (relaidOut) {
-    const layoutInputs = nodes.map((node) =>
-      estimateLayoutNode({
-        id: node.id,
-        type: node.data.type,
-        label: node.data.label,
-        // Preserve a size that is already on the canvas so tidying twice is a
-        // no-op rather than slowly drifting every box.
-        width: Number(node.style?.width) || undefined,
-        height: Number(node.style?.height) || undefined,
-        rows: node.data.rows as Array<{ name: string; type: string }> | undefined,
-        entityAttributes: node.data.entityAttributes as Array<{ name: string }> | undefined,
-      }),
-    );
+    const layoutInputs = nodes
+      .filter((node) => !node.parentId)
+      .map((node) =>
+        estimateLayoutNode({
+          id: node.id,
+          type: node.data.type,
+          label: node.data.label,
+          // Preserve a size that is already on the canvas so tidying twice is a
+          // no-op rather than slowly drifting every box.
+          width: Number(node.style?.width) || undefined,
+          height: Number(node.style?.height) || undefined,
+          rows: node.data.rows as Array<{ name: string; type: string }> | undefined,
+          entityAttributes: node.data.entityAttributes as Array<{ name: string }> | undefined,
+        }),
+      );
     const positions = layoutNodesWithDirection(
       diagramType,
       layoutInputs,
       edges
         .filter((edge) => !isSequenceEdgeType(edge.data?.sequenceType))
-        .map((edge) => ({ source: edge.source, target: edge.target })),
+        .map((edge) => ({
+          source: rootNodeId(edge.source, nodes),
+          target: rootNodeId(edge.target, nodes),
+        }))
+        .filter((edge) => edge.source !== edge.target),
       options.direction,
     );
     for (const node of nodes) {
+      if (node.parentId) continue;
       const next = positions.get(node.id);
       if (!next) continue;
       if (next.x === node.position.x && next.y === node.position.y) continue;
@@ -2016,8 +2251,81 @@ function resolveTidyOperations(
   return { operations, diagramType, relaidOut };
 }
 
+function diagramFingerprint(document: DrawCMSDocument) {
+  return JSON.stringify({
+    nodes: document.nodes,
+    edges: document.edges,
+    meta: document.meta,
+    motion: document.motion,
+  });
+}
+
 export function createDrawCMSWebMCPTools(adapter: DrawCMSWebMCPAdapter): WebMCPToolDefinition[] {
   return [
+    {
+      name: "drawcms_search_icons",
+      title: "Search icons for diagram compositions",
+      description:
+        "Searches the public Iconify service for pictograms and logos, returning exact iconName identifiers, collection names, and license metadata. Only the search query is sent; the diagram is not uploaded. Use a result as type icon in replace/add/update operations, then group it with text and a background using parentId. Match a consistent icon family when reproducing a reference.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            minLength: 1,
+            maxLength: 120,
+            description: "Visual subject, e.g. shield check, target, database, workflow, or brain.",
+          },
+          limit: {
+            type: "integer",
+            minimum: 1,
+            maximum: 32,
+            description: "Maximum results returned; defaults to 12.",
+          },
+          prefix: {
+            type: "string",
+            maxLength: 60,
+            pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            description:
+              "Optional icon family, e.g. lucide or tabler, for a consistent visual style.",
+          },
+        },
+        required: ["query"],
+        additionalProperties: false,
+      },
+      execute: async (input, options) => {
+        try {
+          const parsed = z
+            .object({
+              query: z.string().trim().min(1).max(120),
+              limit: z.number().int().min(1).max(32).default(12),
+              prefix: z
+                .string()
+                .max(60)
+                .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+                .optional(),
+            })
+            .strict()
+            .parse(input);
+          options?.signal?.throwIfAborted();
+          const results = await searchIcons(parsed.query, {
+            signal: options?.signal,
+            prefix: parsed.prefix,
+          });
+          options?.signal?.throwIfAborted();
+          return {
+            ok: true,
+            query: parsed.query,
+            icons: results
+              .slice(0, parsed.limit)
+              .map(({ icon, ...result }) => ({ ...result, iconName: icon })),
+          };
+        } catch (error) {
+          return toErrorResult(error);
+        }
+      },
+      annotations: { readOnlyHint: true, untrustedContentHint: true },
+    },
     {
       name: "drawcms_get_diagram",
       title: "Read DrawCMS diagram",
@@ -2111,7 +2419,21 @@ export function createDrawCMSWebMCPTools(adapter: DrawCMSWebMCPAdapter): WebMCPT
         try {
           if (options?.signal?.aborted)
             throw new DOMException("Tool execution aborted.", "AbortError");
-          const document = createDocumentFromWebMCP(input);
+          const parsed = replaceDiagramInputSchema.parse(input);
+          parsed.nodes.forEach(assertComposition);
+          orderNodesByParent(parsed.nodes);
+          const hasIcons = parsed.nodes.some((node) => node.iconName);
+          const before = hasIcons ? diagramFingerprint(adapter.getDocument()) : undefined;
+          const icons = await resolveIcons(
+            parsed.nodes.map((node) => node.iconName),
+            options?.signal,
+          );
+          const document = createDocumentFromWebMCP(parsed, icons);
+          if (before !== undefined && before !== diagramFingerprint(adapter.getDocument()))
+            throw new WebMCPDiagramInputError(
+              "The diagram changed while icons were loading. Read the current diagram and retry the edit.",
+            );
+          options?.signal?.throwIfAborted();
           await adapter.replaceDocument(document);
           return {
             ok: true,
@@ -2141,7 +2463,21 @@ export function createDrawCMSWebMCPTools(adapter: DrawCMSWebMCPAdapter): WebMCPT
           const result = editDiagramInputSchema.safeParse(input);
           if (!result.success) return toErrorResult(result.error);
           const document = adapter.getDocument();
-          const operations = resolveGraphEditOperations(result.data.operations, document);
+          const icons = await resolveIcons(
+            result.data.operations.flatMap((op) =>
+              op.op === "addNode" || op.op === "updateNode" ? [op.iconName] : [],
+            ),
+            options?.signal,
+          );
+          if (
+            icons.size &&
+            diagramFingerprint(document) !== diagramFingerprint(adapter.getDocument())
+          )
+            throw new WebMCPDiagramInputError(
+              "The diagram changed while icons were loading. Read the current diagram and retry the edit.",
+            );
+          const operations = resolveGraphEditOperations(result.data.operations, document, icons);
+          options?.signal?.throwIfAborted();
           await adapter.applyGraphEdit(operations);
           const counts = {
             addNode: 0,

@@ -61,12 +61,13 @@ function assertFetchResponse(response: Response, fallbackHint: string) {
 /** Search the public Iconify API for icons across all open-source sets. */
 export async function searchIcons(
   query: string,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; prefix?: string } = {},
 ): Promise<IconSearchResult[]> {
   const params = new URLSearchParams({
     query,
     limit: String(ICON_SEARCH_LIMIT),
   });
+  if (options.prefix) params.set("prefix", options.prefix);
   let response: Response;
   try {
     response = await fetch(`${ICONIFY_API_HOST}/search?${params.toString()}`, {

@@ -1,6 +1,7 @@
 import type { AppEdge, AppNode } from "../types";
 import { getNodeSize, TEXT_BELOW_NODE_TYPES } from "../constants";
 import { ROUTE_ISSUE_CODES, type RouteIssueCode } from "../document/diagram-types";
+import { absoluteNodePosition, ancestorIds } from "../node-hierarchy";
 
 export interface Point {
   x: number;
@@ -41,6 +42,10 @@ export function isDiagramRoute(value: unknown): value is DiagramRoute {
     Array.isArray(route.issues) &&
     route.issues.every((code) => (ROUTE_ISSUE_CODES as readonly string[]).includes(code))
   );
+}
+
+export function absoluteNodeBox(node: AppNode, nodes: readonly AppNode[]): Box {
+  return { ...nodeBox(node), ...absoluteNodePosition(node, nodes) };
 }
 
 export function nodeBox(node: AppNode): Box {
@@ -184,18 +189,32 @@ function crosses(a: Point, b: Point, c: Point, d: Point): boolean {
  * returned for drawcms_validate_diagram. No DOM measurement or dependencies.
  */
 export function routeDiagramEdges(nodes: AppNode[], edges: AppEdge[], eligible: Set<string>): void {
-  const boxes = new Map(nodes.map((node) => [node.id, nodeBox(node)]));
-  const obstacles = [...boxes.values()];
+  const boxes = new Map(nodes.map((node) => [node.id, absoluteNodeBox(node, nodes)]));
+  const allBoxes = [...boxes.values()];
   const used: [Point, Point][] = [];
-  const minX = Math.min(...obstacles.map((b) => b.x));
-  const maxX = Math.max(...obstacles.map((b) => b.x + b.width));
-  const minY = Math.min(...obstacles.map((b) => b.y));
-  const maxY = Math.max(...obstacles.map((b) => b.y + b.height));
+  const minX = Math.min(...allBoxes.map((b) => b.x));
+  const maxX = Math.max(...allBoxes.map((b) => b.x + b.width));
+  const minY = Math.min(...allBoxes.map((b) => b.y));
+  const maxY = Math.max(...allBoxes.map((b) => b.y + b.height));
   for (const [index, edge] of edges.entries()) {
     if (!eligible.has(edge.id) || edge.data?.sequenceType) continue;
     const source = boxes.get(edge.source)!;
     const target = boxes.get(edge.target)!;
     if (!source || !target) continue;
+    // Frames surrounding either endpoint are traversable. Artwork inside an
+    // endpoint card is part of that card, not an obstacle to its connector.
+    const endpoints = new Set([edge.source, edge.target]);
+    const ancestors = new Set(
+      nodes
+        .filter((node) => endpoints.has(node.id))
+        .flatMap((node) => [...ancestorIds(node, nodes)]),
+    );
+    const obstacles = nodes
+      .filter(
+        (node) =>
+          !ancestors.has(node.id) && ![...ancestorIds(node, nodes)].some((id) => endpoints.has(id)),
+      )
+      .map((node) => boxes.get(node.id)!);
     const rail = 48 + index * 20;
     const xs = [minX - rail, maxX + rail, (source.x + source.width + target.x) / 2];
     const ys = [minY - rail, maxY + rail, (source.y + source.height + target.y) / 2];
@@ -270,6 +289,14 @@ export function routeDiagramEdges(nodes: AppNode[], edges: AppEdge[], eligible: 
   for (const edge of edges) {
     const route = edge.data?.diagramRoute;
     if (!route) continue;
+    const ancestors = new Set(
+      nodes
+        .filter((node) => node.id === edge.source || node.id === edge.target)
+        .flatMap((node) => [...ancestorIds(node, nodes)]),
+    );
+    const obstacles = nodes
+      .filter((node) => !ancestors.has(node.id))
+      .map((node) => boxes.get(node.id)!);
     const text = edge.label ?? edge.data?.label ?? "";
     const width = Math.min(
       220,

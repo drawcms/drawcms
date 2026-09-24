@@ -6,6 +6,16 @@ import { ShapeBackground } from "./ShapeBackground";
 afterEach(cleanup);
 
 describe("ShapeBackground interaction targets", () => {
+  it("keeps an explicit corner radius circular on a wide reference card", () => {
+    const { container } = render(
+      <svg>
+        <ShapeBackground type="round-rect" borderRadius={12} width={460} height={108} />
+      </svg>,
+    );
+    const rect = container.querySelector("rect")!;
+    expect((Number(rect.getAttribute("rx")) * 460) / 104).toBeCloseTo(12);
+    expect((Number(rect.getAttribute("ry")) * 108) / 104).toBeCloseTo(12);
+  });
   it("forwards selection input to Cloud artwork", () => {
     const onClick = vi.fn();
     const { container } = render(
