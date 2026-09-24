@@ -288,6 +288,73 @@ export function reverseEdgeInSnapshot(state: EditorSnapshot, edgeId: string): Ed
 }
 
 /**
+ * Re-point one end of an edge at a different node or handle.
+ *
+ * The id is preserved deliberately, and that is the whole reason this is a
+ * mutation rather than delete-then-create. Motion presets and story step targets
+ * are keyed by edge id: `reconcileMotionTargets` would see a new id as an
+ * orphaned target, `sanitizeStory` would strip it, and any step whose only target
+ * was this connector would be deleted outright — silent data loss from what the
+ * user experienced as dragging an arrow.
+ *
+ * Endpoint-scoped geometry does not survive, because it describes an anchor that
+ * no longer exists: the offset for the end that moved is dropped (following
+ * `onSequenceEndpointChange`), and `bend` plus any precomputed `diagramRoute` go
+ * too, since both are measured from endpoints that just changed. The offset for
+ * the end that stayed put is kept.
+ *
+ * Returns the same state reference when nothing would change, so a drag that ends
+ * where it started never lands in history.
+ */
+export function reconnectEdgeInSnapshot(
+  state: EditorSnapshot,
+  edgeId: string,
+  endpoints: {
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  },
+): EditorSnapshot {
+  const existing = state.edges.find((edge) => edge.id === edgeId);
+  if (!existing) return state;
+
+  const sourceHandle = endpoints.sourceHandle ?? null;
+  const targetHandle = endpoints.targetHandle ?? null;
+  const unchanged =
+    existing.source === endpoints.source &&
+    existing.target === endpoints.target &&
+    (existing.sourceHandle ?? null) === sourceHandle &&
+    (existing.targetHandle ?? null) === targetHandle;
+  if (unchanged) return state;
+
+  const sourceMoved =
+    existing.source !== endpoints.source || (existing.sourceHandle ?? null) !== sourceHandle;
+  const targetMoved =
+    existing.target !== endpoints.target || (existing.targetHandle ?? null) !== targetHandle;
+
+  return {
+    ...state,
+    edges: state.edges.map((edge) => {
+      if (edge.id !== edgeId) return edge;
+      const data = { ...edge.data };
+      if (sourceMoved) delete data.sourceOffset;
+      if (targetMoved) delete data.targetOffset;
+      delete data.bend;
+      delete data.diagramRoute;
+      return {
+        ...edge,
+        source: endpoints.source,
+        target: endpoints.target,
+        sourceHandle,
+        targetHandle,
+        data,
+      };
+    }),
+  };
+}
+
+/**
  * Swap a node's element type in place (context menu "Replace"): data, renderer
  * type, size, and stacking come from the caller — the node keeps its id, so
  * position, container membership, selection, and connected edges survive.

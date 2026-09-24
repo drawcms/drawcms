@@ -14,6 +14,8 @@ import {
   nextFreePosition,
   pasteCommand,
   reparentOnDragStopCommand,
+  reconnectEdgeCommand,
+  canConnect,
   replaceNodeTypeCommand,
   reverseEdgeCommand,
   ungroupSelectionCommand,
@@ -419,6 +421,124 @@ describe("context-menu operations", () => {
     expect(edge.targetHandle).toBe("right");
     expect(edge.data?.sourceOffset).toEqual({ x: 3, y: 4 });
     expect(edge.data?.targetOffset).toEqual({ x: 1, y: 2 });
+  });
+
+  it("reconnectEdge re-points one end, keeping the id so motion and story stay attached", () => {
+    const state: EditorSnapshot = {
+      nodes: [rect("a"), rect("b"), rect("c")],
+      edges: [
+        {
+          ...link("e1", "a", "b"),
+          sourceHandle: "right",
+          targetHandle: "left",
+          data: {
+            preset: "Data Flow",
+            motionLoop: true,
+            sourceOffset: { x: 1, y: 2 },
+            targetOffset: { x: 3, y: 4 },
+            bend: { x: 10, y: 10 },
+            diagramRoute: { points: [] } as unknown as NonNullable<AppEdge["data"]>["diagramRoute"],
+          },
+        },
+      ],
+    };
+
+    const next = reconnectEdgeCommand("e1", {
+      source: "a",
+      target: "c",
+      sourceHandle: "right",
+      targetHandle: "top",
+    }).apply(state);
+    const edge = next.edges[0]!;
+
+    // The id is the contract: reconcileMotionTargets keys story steps on it, so a
+    // regenerated id would silently delete any step that targeted this connector.
+    expect(edge.id).toBe("e1");
+    expect(edge.source).toBe("a");
+    expect(edge.target).toBe("c");
+    expect(edge.targetHandle).toBe("top");
+
+    // Motion travels with the edge.
+    expect(edge.data?.preset).toBe("Data Flow");
+    expect(edge.data?.motionLoop).toBe(true);
+
+    // Geometry measured from the endpoint that moved does not.
+    expect(edge.data?.targetOffset).toBeUndefined();
+    expect(edge.data?.bend).toBeUndefined();
+    expect(edge.data?.diagramRoute).toBeUndefined();
+    // The end that stayed put keeps its offset.
+    expect(edge.data?.sourceOffset).toEqual({ x: 1, y: 2 });
+  });
+
+  it("reconnectEdge returns the same state when the drop lands where it started", () => {
+    const state: EditorSnapshot = {
+      nodes: [rect("a"), rect("b")],
+      edges: [{ ...link("e1", "a", "b"), sourceHandle: "right", targetHandle: "left" }],
+    };
+    const history = new CommandHistory();
+
+    // Same reference means CommandHistory records nothing, so a no-op endpoint
+    // drag does not cost the user an undo step.
+    const next = history.execute(
+      state,
+      reconnectEdgeCommand("e1", {
+        source: "a",
+        target: "b",
+        sourceHandle: "right",
+        targetHandle: "left",
+      }),
+    );
+    expect(next).toBe(state);
+    expect(history.canUndo).toBe(false);
+  });
+
+  it("reconnectEdge ignores an unknown edge id", () => {
+    const state: EditorSnapshot = { nodes: [rect("a"), rect("b")], edges: [link("e1", "a", "b")] };
+    expect(reconnectEdgeCommand("missing", { source: "a", target: "b" }).apply(state)).toBe(state);
+  });
+
+  it("canConnect refuses locked endpoints, duplicates, and incomplete connections", () => {
+    const state: EditorSnapshot = {
+      nodes: [
+        rect("a"),
+        rect("b"),
+        rect("locked", 0, 0, { data: { label: "l", type: "rect", locked: true } }),
+      ],
+      edges: [{ ...link("e1", "a", "b"), sourceHandle: "right", targetHandle: "left" }],
+    };
+
+    expect(canConnect(state, { source: "a", target: "b" })).toBe(true);
+    expect(canConnect(state, { source: null, target: "b" })).toBe(false);
+
+    // A locked node is unreachable for re-pointing too. React Flow enforces the
+    // lock for new connections through the node's `connectable` flag, but
+    // `reconnectable` lives on the edge — so without this check, dragging an
+    // endpoint onto a locked node would bypass the lock.
+    expect(canConnect(state, { source: "a", target: "locked" })).toBe(false);
+    expect(canConnect(state, { source: "locked", target: "a" })).toBe(false);
+
+    // Exact duplicate of e1.
+    const duplicate = { source: "a", target: "b", sourceHandle: "right", targetHandle: "left" };
+    expect(canConnect(state, duplicate)).toBe(false);
+    // ...unless it is e1 itself being re-pointed back onto its own endpoints.
+    expect(canConnect(state, duplicate, { ignoreEdgeId: "e1" })).toBe(true);
+  });
+
+  it("a re-pointed edge still round-trips through the document schema", () => {
+    const state: EditorSnapshot = {
+      nodes: [rect("a"), rect("b"), rect("c")],
+      edges: [{ ...link("e1", "a", "b"), sourceHandle: "right", targetHandle: "left" }],
+    };
+    const next = reconnectEdgeCommand("e1", {
+      source: "a",
+      target: "c",
+      sourceHandle: "right",
+      targetHandle: "bottom",
+    }).apply(state);
+
+    const document = createDocument({ nodes: next.nodes, edges: next.edges });
+    const restored = parseDocument(JSON.parse(deterministicStringify(document)));
+    expect(restored.edges[0]).toMatchObject({ id: "e1", source: "a", target: "c" });
   });
 
   it("lockNodesCommand toggles the locked flag on exactly the given nodes", () => {

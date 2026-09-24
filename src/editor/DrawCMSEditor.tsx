@@ -1468,6 +1468,9 @@ export function DrawCMSEditor({
                     onNodesChange={state.onNodesChange}
                     onEdgesChange={state.onEdgesChange}
                     onConnect={state.onConnect}
+                    onReconnect={state.onReconnect}
+                    onReconnectStart={state.onReconnectStart}
+                    isValidConnection={state.isValidConnection}
                     setSelectedNodeId={state.setSelectedNodeId}
                     setSelectedEdgeId={state.setSelectedEdgeId}
                     onBlankCanvasClick={isPresentation ? undefined : dismissCanvasOverlays}

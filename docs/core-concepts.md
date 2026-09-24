@@ -15,6 +15,19 @@ relationships or flow between them.
 Select an item to edit its text, appearance, routing, or motion. Multi-select items when a story
 step should focus on a group.
 
+### Re-pointing a connector
+
+Drag either end of a selected connector onto a different node or handle to move that endpoint.
+The connector keeps its identity, so its label, routing mode, motion preset, and any story step
+that highlights it all stay attached — you are moving one end, not replacing the connector.
+
+A drop is refused if it would land on a locked node, or duplicate a connector that already joins
+the same two handles. Endpoint offsets and manual bends for the end you moved are cleared, since
+they were measured from the anchor you just left. One `Mod+Z` puts the endpoint back.
+
+Sequence messages are the exception: their endpoints encode row positions on the lifelines, so
+they keep their own dedicated endpoint drag instead.
+
 ## Motion
 
 Motion belongs to an individual node or connector. Open the selected item's **Motion** tab to pick

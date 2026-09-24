@@ -23,12 +23,14 @@ import { isSequenceEdgeType } from "../types";
 import type { NodeCallbacksType, AnimationStateType, EdgeRoutingCallbacksType } from "../contexts";
 import {
   applyGraphEditOperations,
+  canConnect,
   copyFromSnapshot,
   deleteSelectionCommand,
   groupNodesInSnapshot,
   lockNodesCommand,
   nextFreePosition,
   pasteCommand,
+  reconnectEdgeCommand,
   reparentOnDragStop,
   replaceNodeTypeCommand,
   reverseEdgeCommand,
@@ -705,10 +707,54 @@ export function useEditorState(options?: UseEditorStateOptions) {
         commitSequenceEdge(activeSequenceEdgeTool, params.source, params.target);
         return;
       }
+      if (!canConnect(currentSnapshot(), params)) return;
       pushHistory();
       setEdges((eds) => addEdge(params, eds) as AppEdge[]);
     },
-    [activeSequenceEdgeTool, commitSequenceEdge, pushHistory],
+    [activeSequenceEdgeTool, commitSequenceEdge, currentSnapshot, pushHistory],
+  );
+
+  /**
+   * Re-pointing a connector: drag either endpoint onto a different node or handle.
+   *
+   * History is pushed on drag *start*, matching how geometry drags work
+   * (`edgeRoutingCallbacks.onRoutingChangeStart`). Pushing it in `onReconnect`
+   * instead would snapshot state that already contains the change, making Cmd+Z a
+   * no-op.
+   *
+   * The edge keeps its id, so motion presets and story step targets survive — see
+   * `reconnectEdgeInSnapshot`. Sequence messages are excluded upstream
+   * (`flowEdges` sets `reconnectable: false`) because their endpoints encode row
+   * geometry and already have a dedicated drag affordance.
+   */
+  const onReconnectStart = useCallback(() => {
+    pushHistory();
+  }, [pushHistory]);
+
+  const onReconnect = useCallback(
+    (oldEdge: AppEdge, connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      if (!canConnect(currentSnapshot(), connection, { ignoreEdgeId: oldEdge.id })) return;
+      applySnapshot(
+        reconnectEdgeCommand(oldEdge.id, {
+          source: connection.source,
+          target: connection.target,
+          sourceHandle: connection.sourceHandle,
+          targetHandle: connection.targetHandle,
+        }).apply(currentSnapshot()),
+      );
+    },
+    [applySnapshot, currentSnapshot],
+  );
+
+  /**
+   * Live feedback while dragging a connection or an endpoint: React Flow marks the
+   * line invalid and refuses the drop. Same predicate as the commit path, so the
+   * canvas never accepts a drop it would then silently discard.
+   */
+  const isValidConnection = useCallback(
+    (connection: Connection | AppEdge) => canConnect(currentSnapshot(), connection),
+    [currentSnapshot],
   );
 
   const handleSequenceEdgeNodeClick = useCallback(
@@ -1251,7 +1297,12 @@ export function useEditorState(options?: UseEditorStateOptions) {
       return {
         ...e,
         type: "custom" as const,
-        reconnectable: isSequenceEdge ? false : e.reconnectable,
+        // Endpoints are draggable on ordinary connectors. Sequence messages opt
+        // out: their handles encode row geometry (sequence-row-N, capped at 12),
+        // and they already have a dedicated endpoint drag through
+        // onSequenceEndpointChange. Stated explicitly rather than leaning on
+        // React Flow's `edgesReconnectable` default.
+        reconnectable: isSequenceEdge ? false : (e.reconnectable ?? true),
         ariaLabel: isSequenceEdge
           ? `${String(e.label || e.data?.label || "Sequence message")}, ${Math.round(edgeScale * 100)}% scale`
           : e.ariaLabel,
@@ -1286,6 +1337,9 @@ export function useEditorState(options?: UseEditorStateOptions) {
     onNodesChange,
     onEdgesChange,
     onConnect,
+    onReconnect,
+    onReconnectStart,
+    isValidConnection,
     handleAddNode,
     handleAddIcon,
     handleSequenceEdgeNodeClick,

@@ -831,3 +831,161 @@ describe("placing elements added without a position", () => {
     expect(result.current.nodes[0].position).toEqual({ x: 12, y: 34 });
   });
 });
+
+describe("re-pointing a connector", () => {
+  const three: AppNode[] = [
+    { id: "a", position: { x: 0, y: 0 }, data: { label: "A", type: "rect" } },
+    { id: "b", position: { x: 200, y: 0 }, data: { label: "B", type: "rect" } },
+    { id: "c", position: { x: 400, y: 0 }, data: { label: "C", type: "rect" } },
+  ];
+  const link: AppEdge = {
+    id: "e1",
+    source: "a",
+    target: "b",
+    sourceHandle: "right",
+    targetHandle: "left",
+    data: { preset: "Data Flow", motionLoop: true },
+  };
+
+  it("moves the endpoint and keeps the edge id, preset, and loop", () => {
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: three, initialEdges: [link] }),
+    );
+
+    act(() => result.current.onReconnectStart());
+    act(() =>
+      result.current.onReconnect(link, {
+        source: "a",
+        target: "c",
+        sourceHandle: "right",
+        targetHandle: "left",
+      }),
+    );
+
+    expect(result.current.edges).toHaveLength(1);
+    expect(result.current.edges[0]).toMatchObject({
+      id: "e1",
+      source: "a",
+      target: "c",
+      data: { preset: "Data Flow", motionLoop: true },
+    });
+  });
+
+  // History is pushed on drag start, not on the mutation. Pushing it in
+  // onReconnect would snapshot state that already contains the change and make
+  // Cmd+Z a no-op — the same trap onNodesChange avoids for dimension changes.
+  it("undo restores the original endpoints", () => {
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: three, initialEdges: [link] }),
+    );
+
+    act(() => result.current.onReconnectStart());
+    act(() =>
+      result.current.onReconnect(link, {
+        source: "a",
+        target: "c",
+        sourceHandle: null,
+        targetHandle: "left",
+      }),
+    );
+    expect(result.current.edges[0].target).toBe("c");
+
+    act(() => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true, bubbles: true }),
+      );
+    });
+    expect(result.current.edges[0]).toMatchObject({ id: "e1", source: "a", target: "b" });
+  });
+
+  it("refuses a drop onto a locked node", () => {
+    const locked: AppNode[] = [
+      ...three.slice(0, 2),
+      { id: "c", position: { x: 400, y: 0 }, data: { label: "C", type: "rect", locked: true } },
+    ];
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: locked, initialEdges: [link] }),
+    );
+
+    act(() => result.current.onReconnectStart());
+    act(() =>
+      result.current.onReconnect(link, {
+        source: "a",
+        target: "c",
+        sourceHandle: null,
+        targetHandle: null,
+      }),
+    );
+
+    expect(result.current.edges[0].target).toBe("b");
+  });
+
+  it("refuses a drop that would duplicate an existing connector", () => {
+    const existing: AppEdge = { id: "e2", source: "a", target: "c" };
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: three, initialEdges: [link, existing] }),
+    );
+
+    act(() => result.current.onReconnectStart());
+    act(() =>
+      result.current.onReconnect(link, {
+        source: "a",
+        target: "c",
+        sourceHandle: null,
+        targetHandle: null,
+      }),
+    );
+
+    expect(result.current.edges.find((e) => e.id === "e1")?.target).toBe("b");
+    expect(result.current.edges).toHaveLength(2);
+  });
+
+  it("isValidConnection mirrors the commit rules", () => {
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: three, initialEdges: [link] }),
+    );
+
+    expect(
+      result.current.isValidConnection({
+        source: "a",
+        target: "c",
+        sourceHandle: null,
+        targetHandle: null,
+      }),
+    ).toBe(true);
+    expect(
+      result.current.isValidConnection({
+        source: "a",
+        target: "b",
+        sourceHandle: "right",
+        targetHandle: "left",
+      }),
+    ).toBe(false);
+  });
+
+  it("leaves sequence messages non-reconnectable", () => {
+    const lifelines: AppNode[] = [
+      { id: "client", position: { x: 100, y: 40 }, data: { label: "C", type: "sequence-actor" } },
+      {
+        id: "api",
+        position: { x: 360, y: 40 },
+        data: { label: "A", type: "sequence-participant" },
+      },
+    ];
+    const message = createSequenceEdge({
+      id: "request",
+      sequenceType: "sequence-message",
+      label: "request()",
+      source: "client",
+      target: "api",
+      row: 1,
+    });
+    const { result } = renderHook(() =>
+      useEditorState({ initialNodes: lifelines, initialEdges: [message] }),
+    );
+
+    // Row geometry (sequence-row-N, capped at 12) is not something a free
+    // endpoint drag can honour, and these already have their own affordance.
+    expect(result.current.flowEdges[0].reconnectable).toBe(false);
+  });
+});

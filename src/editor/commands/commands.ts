@@ -8,6 +8,7 @@ import {
   deleteEdgeFromSnapshot,
   deleteNodesFromSnapshot,
   groupNodesInSnapshot,
+  reconnectEdgeInSnapshot,
   reparentOnDragStop,
   replaceNodeInSnapshot,
   reverseEdgeInSnapshot,
@@ -279,6 +280,68 @@ export function reverseEdgeCommand(edgeId: string): EditorCommand {
     type: "edge.reverse",
     apply: (state) => reverseEdgeInSnapshot(state, edgeId),
   };
+}
+
+/**
+ * Re-point an existing connector at a different node or handle, keeping its id so
+ * motion and story targets stay attached. See `reconnectEdgeInSnapshot`.
+ */
+export function reconnectEdgeCommand(
+  edgeId: string,
+  endpoints: {
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  },
+): EditorCommand {
+  return {
+    type: "edge.reconnect",
+    apply: (state) => reconnectEdgeInSnapshot(state, edgeId, endpoints),
+  };
+}
+
+/**
+ * Shared rule for "may these two handles be joined?", used for both new
+ * connections and re-pointing an existing one.
+ *
+ * It exists because the two paths previously disagreed. Locked nodes were
+ * enforced by React Flow through the node's `connectable` flag, which says nothing
+ * about reconnection — `reconnectable` lives on the *edge* — so dragging an
+ * endpoint onto a locked node would have bypassed the lock. The duplicate guard
+ * lived only in `connectCommand` and never ran for interactive drags.
+ *
+ * `ignoreEdgeId` excludes the edge being re-pointed from the duplicate check;
+ * without it, dropping an endpoint back where it started reads as a duplicate of
+ * itself.
+ */
+export function canConnect(
+  snapshot: EditorSnapshot,
+  connection: {
+    source?: string | null;
+    target?: string | null;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  },
+  options?: { ignoreEdgeId?: string },
+): boolean {
+  const { source, target } = connection;
+  if (!source || !target) return false;
+
+  const locked = (nodeId: string) =>
+    snapshot.nodes.some((node) => node.id === nodeId && node.data?.locked === true);
+  if (locked(source) || locked(target)) return false;
+
+  const sourceHandle = connection.sourceHandle ?? null;
+  const targetHandle = connection.targetHandle ?? null;
+  return !snapshot.edges.some(
+    (edge) =>
+      edge.id !== options?.ignoreEdgeId &&
+      edge.source === source &&
+      edge.target === target &&
+      (edge.sourceHandle ?? null) === sourceHandle &&
+      (edge.targetHandle ?? null) === targetHandle,
+  );
 }
 
 export function lockNodesCommand(nodeIds: readonly string[], locked: boolean): EditorCommand {

@@ -788,6 +788,15 @@ interface DiagramCanvasProps {
   onNodesChange: (changes: NodeChange[]) => void;
   onEdgesChange: (changes: EdgeChange[]) => void;
   onConnect: (connection: Connection) => void;
+  /**
+   * Re-point an existing connector. Dragging an endpoint is inert unless
+   * `onReconnect` is supplied — React Flow has no default behaviour for it.
+   */
+  onReconnect?: (oldEdge: AppEdge, connection: Connection) => void;
+  /** Fired when an endpoint drag begins, so the host can snapshot for undo. */
+  onReconnectStart?: () => void;
+  /** Rejects invalid drops while dragging, for both new and re-pointed edges. */
+  isValidConnection?: (connection: Connection | AppEdge) => boolean;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedEdgeId: (id: string | null) => void;
   /** Called only for an intentional canvas/node/edge click, not selection bookkeeping. */
@@ -1014,6 +1023,9 @@ export function DiagramCanvas({
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onReconnect,
+  onReconnectStart,
+  isValidConnection,
   setSelectedNodeId,
   setSelectedEdgeId,
   onCanvasSelectionIntent,
@@ -1292,6 +1304,9 @@ export function DiagramCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onReconnect={readOnly ? undefined : onReconnect}
+        onReconnectStart={readOnly ? undefined : onReconnectStart}
+        isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onInit={(instance) => {
