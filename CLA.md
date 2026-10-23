@@ -31,8 +31,9 @@ By accepting this Agreement, you agree to the following:
 7. You are not required to provide support for your contribution.
 8. The Maintainer is not required to use or distribute your contribution.
 
-Acceptance must be recorded by the CLA workflow linked to the pull request.
-A pull-request checkbox alone does not replace that recorded acceptance.
+Acceptance must be recorded by the CLA workflow on the pull request: reply with
+the exact signature comment documented in CONTRIBUTING.md. A checkbox or informal
+agreement in the PR description does not replace that recorded acceptance.
 
 This document is a project template, not legal advice. It must be reviewed by
 qualified counsel before the Project accepts external contributions or relies
