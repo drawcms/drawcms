@@ -1,0 +1,81 @@
+name: CLA
+
+# Records CLA acceptance on pull requests. Signatures are committed to the
+# `cla-signatures` branch (never to main). The public editor stays AGPL; the
+# CLA is what lets the maintainer also use contributions in a separately
+# licensed commercial product (CLA.md, adr/001).
+#
+# Action: contributor-assistant/github-action v2.6.1, pinned by commit SHA.
+# Upstream was archived in March 2026; releases still work. Prefer a maintained
+# fork if one becomes the clear successor.
+#
+# Maintainer setup (once, before relying on this check):
+#   1. Create an unprotected `cla-signatures` branch if it does not exist.
+#      The action writes via createOrUpdateFileContents and will not create
+#      the branch. Leave it free of required reviews / status checks so the
+#      default GITHUB_TOKEN can push signature commits.
+#   2. Mark the "CLA / Check CLA signature" check required in branch protection
+#      for external PRs if you want merge gating beyond convention.
+#
+# When CLA.md's Version header changes, bump path-to-signatures below to a new
+# signatures/versionN/cla.json path so every contributor must re-accept.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_target:
+    types: [opened, synchronize, closed]
+
+# pull_request_target runs in the base-repo context so fork PRs can still write
+# the signature file and set the check. This job must never check out or run
+# code from the pull request head.
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+# One signatures file is shared across PRs; serialize writes so concurrent
+# signatures do not race. Do not cancel — a dropped run loses a signature.
+concurrency:
+  group: cla-signatures
+  cancel-in-progress: false
+
+jobs:
+  cla:
+    name: Check CLA signature
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check or record CLA signature
+        if: >-
+          (github.event_name == 'issue_comment' &&
+           github.event.issue.pull_request &&
+           (github.event.comment.body == 'recheck' ||
+            github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA')) ||
+          (github.event_name == 'pull_request_target' &&
+           (github.event.action != 'closed' || github.event.pull_request.merged == true))
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          path-to-document: https://github.com/drawcms/drawcms/blob/main/CLA.md
+          # Bump the versionN segment when CLA.md's Version header changes.
+          path-to-signatures: signatures/version1/cla.json
+          branch: cla-signatures
+          # Explicit bot logins only. A bot* wildcard can match human usernames.
+          allowlist: dimasna,dependabot[bot],renovate[bot],github-actions[bot]
+          lock-pullrequest-aftermerge: true
+          custom-notsigned-prcomment: >-
+            Thanks for the pull request. Before it can be merged, please read
+            and accept the DrawCMS Contributor License Agreement
+            (https://github.com/drawcms/drawcms/blob/main/CLA.md).
+
+            You keep copyright in your contribution. The CLA grants the
+            maintainer a license to distribute it under open-source and
+            proprietary terms, which is what keeps the public editor AGPL while
+            allowing a separately licensed commercial product.
+
+            To accept, reply to this pull request with exactly:
+          custom-pr-sign-comment: I have read the CLA Document and I hereby sign the CLA
+          custom-allsigned-prcomment: All contributors have signed the CLA. Thank you.

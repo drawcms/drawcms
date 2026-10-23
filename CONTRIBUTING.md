@@ -6,14 +6,36 @@ Thank you for improving DrawCMS.
 
 - Search existing issues before opening a new one.
 - For a substantial feature or data-model change, open a design issue first.
-- Accept the [Contributor License Agreement](CLA.md) through the repository's
-  CLA workflow. The CLA lets the public editor remain AGPL while allowing the
+- Accept the [Contributor License Agreement](CLA.md) on your pull request (see
+  below). The CLA lets the public editor remain AGPL while allowing the
   maintainer to offer a separately licensed commercial product.
 - Do not submit code, assets, icons, fonts, or examples that you do not have
   permission to contribute.
 
-External pull requests must not be merged until the CLA workflow is installed
-and records the contributor's acceptance.
+### Contributor License Agreement
+
+External pull requests run a CLA check (workflow `.github/workflows/cla.yml`).
+
+1. Open the pull request as usual.
+2. The check fails until every human co-author has accepted the current CLA.
+   A bot comment on the PR links to [CLA.md](CLA.md) and asks for a signature.
+3. Reply with exactly this comment (copy and paste):
+
+   ```text
+   I have read the CLA Document and I hereby sign the CLA
+   ```
+
+4. The workflow records your GitHub identity against the current CLA revision
+   on the `cla-signatures` branch (`signatures/versionN/cla.json`) and the
+   check turns green. You only need to do this once per CLA revision.
+5. If the check is stale after signing, comment `recheck`.
+
+A PR checkbox or informal "I agree" in the description does not count. Do not
+merge an external PR while the CLA check is failing.
+
+When [CLA.md](CLA.md)'s Version header changes, maintainers bump
+`path-to-signatures` in the CLA workflow to a new `signatures/versionN/` path
+so previous acceptances no longer satisfy the check and contributors re-sign.
 
 ## Development
 
