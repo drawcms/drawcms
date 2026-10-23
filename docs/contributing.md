@@ -64,9 +64,16 @@ Before submitting:
 - Confirm `npm run ci` passes.
 - Confirm no secrets, credentials, generated output, or unrelated files are included.
 
-Contributors must accept the project's Contributor License Agreement through the pull request
-workflow. Only submit work you have permission to license. External pull requests cannot be merged
-until the CLA check records acceptance.
+Contributors must accept the [Contributor License Agreement](https://github.com/drawcms/drawcms/blob/main/CLA.md)
+on the pull request. The CLA check fails until each human co-author replies with exactly:
+
+```text
+I have read the CLA Document and I hereby sign the CLA
+```
+
+Acceptance is stored per contributor and CLA revision on the repository's `cla-signatures` branch.
+Comment `recheck` if the status does not update after signing. Only submit work you have permission
+to license. External pull requests must not be merged while the CLA check is failing.
 
 ## Report security issues
 
